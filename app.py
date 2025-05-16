@@ -37,14 +37,25 @@ Context: {context}
 
 Historical Data: {historical_data}
 
-Future Box Information: {future_box_info}
+Box Information: {box_info}
 
-You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Based on the context, historical data, and future box information, predict the daily intake (new members per day) for the future box at a Customer Acquisition Cost (CAC) of 17.5 EUR. Consider factors such as the number of products, total retail value, unique categories, full-size products, premium products (>20 EUR), total weight, average product rating, average brand rating, average category rating, niche products, free gifts, and seasonality. Return only the numerical value of the predicted daily intake as a float (e.g., 150.0).
+You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Based on the context, historical data, and box information, predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR.
+
+Consider the following factors:
+- Number of products, total retail value, and unique categories.
+- Number of full-size products and premium products (>20 EUR).
+- Total weight (as a proxy for box fullness, higher weight often correlates with higher intake).
+- Average product rating, average brand rating, and average category rating (higher ratings generally increase intake).
+- Presence of niche products (niche products may reduce intake due to lower relatability, reduce predicted intake by 10-15% per niche product).
+- Free gift value and rating (higher value/rating often increases intake, add 5% to intake per 10 EUR of free gift value).
+- Seasonality (boxes launched early in the month may have a 20-30% higher intake; adjust downward if not early-month).
+
+Return only the numerical value of the predicted daily intake as a float (e.g., 150.0).
 """
 
 try:
     prompt = PromptTemplate(
-        input_variables=["context", "historical_data", "future_box_info"],
+        input_variables=["context", "historical_data", "box_info"],
         template=template
     )
     logger.info("Prompt template created successfully")
@@ -60,8 +71,8 @@ except Exception as e:
     logger.error(f"Failed to create LLM chain: {str(e)}")
     raise
 
-def predict_box_intake(context, historical_data, future_box_info):
-    """Predict daily intake for a future box using LangChain."""
+def predict_box_intake(context, historical_data, box_info):
+    """Predict daily intake for a box using LangChain."""
     try:
         predictions = []
         for i in range(5):  # 5 runs for averaging
@@ -69,7 +80,7 @@ def predict_box_intake(context, historical_data, future_box_info):
             result = chain.run({
                 "context": context,
                 "historical_data": historical_data,
-                "future_box_info": future_box_info
+                "box_info": box_info
             })
             logger.info(f"Run {i+1} response: {result}")
             match = re.search(r'\d+\.\d+', result)
@@ -93,17 +104,17 @@ def predict_box_intake(context, historical_data, future_box_info):
 
 @app.route('/predict_box_score', methods=['POST'])
 def box_score():
-    """Endpoint for predicting future box intake."""
+    """Endpoint for predicting box intake."""
     try:
         data = request.get_json()
-        if not data or 'future_box_info' not in data or 'context' not in data:
-            logger.error("Missing future_box_info or context in request")
-            return jsonify({'error': 'Missing future_box_info or context'}), 400
+        if not data or 'box_info' not in data or 'context' not in data:
+            logger.error("Missing box_info or context in request")
+            return jsonify({'error': 'Missing box_info or context'}), 400
         historical_data = data.get('historical_data', 'No historical data provided')
-        future_box_info = data['future_box_info']
+        box_info = data['box_info']
         context_text = data['context']
         logger.info("Received request to predict box intake")
-        intake = predict_box_intake(context_text, historical_data, future_box_info)
+        intake = predict_box_intake(context_text, historical_data, box_info)
         logger.info(f"Returning predicted intake: {intake}")
         return jsonify({'predicted_intake': intake})
     except Exception as e:
