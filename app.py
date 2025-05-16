@@ -74,6 +74,8 @@ except Exception as e:
 def predict_box_intake(context, historical_data, box_info):
     """Predict daily intake for a box using LangChain."""
     try:
+        logger.info(f"Processing prediction request with context: {context[:100]}...")
+        logger.info(f"Box info: {box_info[:100]}...")
         predictions = []
         for i in range(5):  # 5 runs for averaging
             logger.info(f"Sending request to LangChain (run {i+1}/5)")
