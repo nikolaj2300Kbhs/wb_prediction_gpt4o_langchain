@@ -6,7 +6,6 @@ import os
 import re
 import logging
 import time
-from google.api_core import client_options as client_options_lib
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,15 +22,16 @@ if not GOOGLE_API_KEY:
 
 # Set up Gemini 2.5 Pro with LangChain
 try:
-    client_options = client_options_lib.ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
+    client_options = {
+        "api_endpoint": "https://generativelanguage.googleapis.com"
+    }
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-pro-latest",
         google_api_key=GOOGLE_API_KEY,
         temperature=0.1,
         max_output_tokens=1000,
         timeout=60,
-        client_options=client_options,
-        api_version="v1"  # Use v1 API version
+        client_options=client_options
     )
     logger.info("Gemini model initialized successfully")
 except Exception as e:
