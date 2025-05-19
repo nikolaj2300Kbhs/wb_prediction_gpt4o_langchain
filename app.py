@@ -6,6 +6,7 @@ import os
 import re
 import logging
 import time
+from google.api_core import client_options as client_options_lib
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,12 +23,15 @@ if not GOOGLE_API_KEY:
 
 # Set up Gemini 2.5 Pro with LangChain
 try:
+    client_options = client_options_lib.ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-pro",
+        model="gemini-2.5-pro-latest",
         google_api_key=GOOGLE_API_KEY,
-        temperature=0.1,  # Lower temperature for deterministic output
+        temperature=0.1,
         max_output_tokens=1000,
-        timeout=30
+        timeout=60,
+        client_options=client_options,
+        api_version="v1"  # Use v1 API version
     )
     logger.info("Gemini model initialized successfully")
 except Exception as e:
@@ -123,9 +127,10 @@ def predict_box_intake(context, historical_data, box_info):
         logger.info(f"Processing prediction request with context: {context[:100]}...")
         logger.info(f"Box info: {box_info[:100]}...")
         predictions = []
+        max_retries = 3
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to LangChain (run {i+1}/1)")
-            for attempt in range(3):
+            for attempt in range(max_retries):
                 try:
                     result = chain.run({
                         "context": context,
@@ -145,11 +150,11 @@ def predict_box_intake(context, historical_data, box_info):
                         logger.warning(f"Invalid intake format in run {i+1}: {result}")
                         raise ValueError("Invalid intake format")
                 except Exception as e:
-                    logger.warning(f"Run {i+1} failed (attempt {attempt+1}/3): {str(e)}")
-                    if attempt == 2:
+                    logger.warning(f"Run {i+1} failed (attempt {attempt+1}/{max_retries}): {str(e)}")
+                    if attempt == max_retries - 1:
                         logger.error(f"All attempts failed for run {i+1}")
                         raise
-                    time.sleep(2)
+                    time.sleep(2 ** attempt)  # Exponential backoff: 2, 4, 8 seconds
         if not predictions:
             logger.error("No valid intake values collected")
             raise ValueError("No valid intake values collected")
