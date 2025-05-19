@@ -23,8 +23,8 @@ if not OPENAI_API_KEY:
 # Set up OpenAI with LangChain
 try:
     llm = ChatOpenAI(
-        model="gpt-4o",
-        temperature=0.2,
+        model="gpt-4-turbo",  # Switch to GPT-4 Turbo
+        temperature=0.1,  # Lower temperature for more deterministic output
         max_tokens=1000,
         timeout=30
     )
@@ -41,42 +41,59 @@ Historical Data: {historical_data}
 
 Box Information: {box_info}
 
-You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Your task is to predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR. Follow these steps exactly to calculate the daily intake, and do not return any other numerical value such as the total retail value of the box.
+You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Your task is to predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR. Follow these steps exactly to calculate the daily intake. Do not return any other numerical value, such as the total retail value of the box. Only return the final predicted daily intake as a float (e.g., 50.0).
 
 **Step 1: Start with a Baseline**
 - Begin with a baseline intake of 35 members/day.
 
 **Step 2: Apply Adjustments Based on Box Information**
-- **Number of Products and Total Retail Value**: If the number of products exceeds 10, add a 5% boost (cap at 10 products). If the total retail value exceeds 200 EUR, add a 5% boost (cap the effect at 200 EUR).
-- **Premium Products (>20 EUR)**: Each premium product adds a 5% boost to intake, up to a maximum of 25%.
-- **Total Weight**: Weight up to 500g adds a 5% boost per 100g; weight above 500g adds a flat 15% boost.
-- **Average Ratings**: For product, brand, and category ratings, each 0.1 increment above 4.0 adds a 3% boost (e.g., 4.2 adds 6%).
-- **Niche Products**: Each niche product reduces intake by 20%.
-- **Free Gift Value and Rating**: Add 1% to intake per 10 EUR of free gift value, and add 5% if the free gift rating is above 4.0.
-- **Seasonality**: Boxes launched early in the month (e.g., January, October) have a 5-10% higher intake; adjust downward if not early-month.
+- **Retail Value Adjustment**: The total retail value of the box influences intake. For every 10 EUR above 50 EUR, add a 2% boost to intake, up to a maximum of 30%. For example, a retail value of 150 EUR (100 EUR above 50) adds a 20% boost (100 / 10 * 2%), while a value of 250 EUR adds the maximum 30% boost.
+- **Premium Products (>20 EUR)**: Each premium product adds a 5% boost to intake, up to a maximum of 25%. For example, 3 premium products add a 15% boost, 5 or more add a 25% boost.
+- **Total Weight**: Weight up to 500g adds a 5% boost per 100g; weight above 500g adds a flat 15% boost. For example, 400g adds a 20% boost (4 * 5%), 600g adds a 15% boost.
+- **Average Ratings**: For each of product, brand, and category ratings, add a 3% boost for every 0.1 increment above 4.0. For example, a rating of 4.2 adds 6% (0.2 * 3%). Sum the boosts from all three ratings.
+- **Niche Products**: Each niche product reduces intake by 20%. For example, 1 niche product reduces intake by 20%, 2 niche products by 40%.
+- **Free Gift Value and Rating**: Add 1% to intake for every 10 EUR of free gift value (e.g., 50 EUR adds 5%). Add an additional 5% if the free gift rating is above 4.0.
+- **Seasonality**: If the launch month is early in the month (e.g., January, October), add a 5% boost. Otherwise, no adjustment.
 
 **Step 3: Calculate the Total Adjustment**
-- Sum the percentage boosts and reductions to get the total adjustment (e.g., +20% from premium products, -20% from niche products, etc.).
-- Apply the total adjustment to the baseline: Adjusted Intake = Baseline * (1 + Total Adjustment / 100).
+- Sum the percentage boosts and reductions to get the total adjustment. For example, if boosts are +20% (retail value), +15% (premium products), +20% (weight), +9% (ratings), +10% (free gift), +5% (seasonality), and reductions are -20% (niche products), the total adjustment is 20 + 15 + 20 + 9 + 10 + 5 - 20 = 59%.
+- Apply the total adjustment to the baseline: Adjusted Intake = Baseline * (1 + Total Adjustment / 100). For example, 35 * (1 + 0.59) = 55.65.
 
 **Step 4: Clamp the Final Value**
-- Ensure the final predicted intake is between 20 and 100 members/day (historical range). If the adjusted intake is below 20, set it to 20; if above 100, set it to 100.
+- Ensure the final predicted intake is between 20 and 100 members/day. If the adjusted intake is below 20, set it to 20; if above 100, set it to 100.
 
-**Example Calculation**:
-- Box Information: Total retail value: 150 EUR, Number of products: 7, Premium products: 3, Weight: 400g, Product rating: 4.2, Category rating: 4.1, Brand rating: 4.0, Niche products: 1, Free gift value: 50 EUR, Free gift rating: 4.5, Launch month: January
-- Step 1: Baseline = 35 members/day.
-- Step 2:
-  - Products/Value: No boost (7 products < 10, value 150 < 200).
-  - Premium products: 3 * 5% = 15% boost.
-  - Weight: 400g = 4 * 5% = 20% boost.
-  - Ratings: Product 4.2 (6%), Category 4.1 (3%), Brand 4.0 (0%) = 9% boost.
-  - Niche products: 1 * 20% = 20% reduction.
-  - Free gift: 50 EUR = 5% + 5% (rating > 4.0) = 10% boost.
-  - Seasonality: Early-month = 5% boost.
-- Step 3: Total Adjustment = 15% + 20% + 9% + 10% + 5% - 20% = 39%.
-- Adjusted Intake = 35 * (1 + 0.39) = 48.65.
-- Step 4: Clamped Intake = 48.65 (within 20-100).
-- Output: 48.65
+**Examples**:
+- **Example 1**:
+  - Box Information: Number of products: 7, Number of premium products (>20 EUR): 3, Total weight: 400g, Number of niche products: 1, Average product rating: 4.2, Average category rating: 4.1, Average brand rating: 4.0, Free gift: Value: 50 EUR, Rating: 4.5, Launch month: January, Total retail value (for reference only, do not use as prediction): 150 EUR
+  - Step 1: Baseline = 35 members/day.
+  - Step 2:
+    - Retail Value: 150 EUR (100 EUR above 50) = 20% boost (100 / 10 * 2%).
+    - Premium products: 3 * 5% = 15% boost.
+    - Weight: 400g = 4 * 5% = 20% boost.
+    - Ratings: Product 4.2 (6%), Category 4.1 (3%), Brand 4.0 (0%) = 9% boost.
+    - Niche products: 1 * 20% = 20% reduction.
+    - Free gift: 50 EUR = 5% + 5% (rating > 4.0) = 10% boost.
+    - Seasonality: Early-month = 5% boost.
+  - Step 3: Total Adjustment = 20 + 15 + 20 + 9 + 10 + 5 - 20 = 59%.
+  - Adjusted Intake = 35 * (1 + 0.59) = 55.65.
+  - Step 4: Clamped Intake = 55.65 (within 20-100).
+  - Output: 55.65
+
+- **Example 2**:
+  - Box Information: Number of products: 8, Number of premium products (>20 EUR): 5, Total weight: 600g, Number of niche products: 2, Average product rating: 4.3, Average category rating: 4.2, Average brand rating: 4.1, Free gift: Value: 65 EUR, Rating: 4.33, Launch month: March, Total retail value (for reference only, do not use as prediction): 250 EUR
+  - Step 1: Baseline = 35 members/day.
+  - Step 2:
+    - Retail Value: 250 EUR (200 EUR above 50) = 30% boost (capped at 30%).
+    - Premium products: 5 * 5% = 25% boost (capped).
+    - Weight: 600g = 15% boost.
+    - Ratings: Product 4.3 (9%), Category 4.2 (6%), Brand 4.1 (3%) = 18% boost.
+    - Niche products: 2 * 20% = 40% reduction.
+    - Free gift: 65 EUR = 6.5% + 5% (rating > 4.0) = 11.5% boost.
+    - Seasonality: Not early-month = 0% boost.
+  - Step 3: Total Adjustment = 30 + 25 + 15 + 18 + 11.5 - 40 = 59.5%.
+  - Adjusted Intake = 35 * (1 + 0.595) = 55.825.
+  - Step 4: Clamped Intake = 55.83 (within 20-100, rounded to 2 decimals).
+  - Output: 55.83
 
 Now, calculate the daily intake for the given box using the same steps. Return only the numerical value of the predicted daily intake as a float (e.g., 50.0). Do not return the total retail value or any other number.
 """
