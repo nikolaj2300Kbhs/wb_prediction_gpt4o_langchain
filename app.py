@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 import os
@@ -15,22 +15,23 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Verify environment variables
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-if not OPENAI_API_KEY:
-    logger.error("OPENAI_API_KEY is not set")
-    raise ValueError("OPENAI_API_KEY is not set")
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+if not GOOGLE_API_KEY:
+    logger.error("GOOGLE_API_KEY is not set")
+    raise ValueError("GOOGLE_API_KEY is not set")
 
-# Set up OpenAI with LangChain
+# Set up Gemini 2.5 Pro with LangChain
 try:
-    llm = ChatOpenAI(
-        model="gpt-4-turbo",  # Switch to GPT-4 Turbo
-        temperature=0.1,  # Lower temperature for more deterministic output
-        max_tokens=1000,
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-pro",
+        google_api_key=GOOGLE_API_KEY,
+        temperature=0.1,  # Lower temperature for deterministic output
+        max_output_tokens=1000,
         timeout=30
     )
-    logger.info("OpenAI model initialized successfully")
+    logger.info("Gemini model initialized successfully")
 except Exception as e:
-    logger.error(f"Failed to initialize OpenAI model: {str(e)}")
+    logger.error(f"Failed to initialize Gemini model: {str(e)}")
     raise
 
 # Define prompt template
