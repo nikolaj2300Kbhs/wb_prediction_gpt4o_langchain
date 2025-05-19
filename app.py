@@ -26,7 +26,7 @@ try:
         model="gpt-4o",
         temperature=0.2,
         max_tokens=1000,
-        timeout=30  # Add timeout to prevent hanging
+        timeout=30
     )
     logger.info("OpenAI model initialized successfully")
 except Exception as e:
@@ -46,13 +46,13 @@ You are an expert in evaluating Goodiebox welcome boxes for their ability to att
 Consider the following factors:
 - Number of products, total retail value, and unique categories (more products and higher value generally increase intake, but cap the effect at 10 products and 200 EUR for diminishing returns).
 - Number of full-size products and premium products (>20 EUR) (each premium product adds a 5% boost to intake, up to a maximum of 25%).
-- Total weight (as a proxy for box fullness; weight up to 500g correlates with higher intake, adding a 5% boost per 100g; weight above 500g adds a flat 25% boost).
+- Total weight (as a proxy for box fullness; weight up to 500g correlates with higher intake, adding a 5% boost per 100g; weight above 500g adds a flat 15% boost).
 - Average product rating, average brand rating, and average category rating (ratings above 4.0 add a 5% boost per 0.1 increment above 4.0, e.g., 4.2 adds 10%).
 - Presence of niche products (niche products reduce intake due to lower relatability; reduce predicted intake by 15-20% per niche product).
-- Free gift value and rating (higher value/rating increases intake; add 2% to intake per 10 EUR of free gift value, and add 5% if the free gift rating is above 4.0).
+- Free gift value and rating (higher value/rating increases intake; add 1% to intake per 10 EUR of free gift value, and add 5% if the free gift rating is above 4.0).
 - Seasonality (boxes launched early in the month may have a 5-10% higher intake; adjust downward if not early-month).
 
-Start with a baseline intake of 50 members/day and adjust based on the factors above. Ensure the final predicted intake is reasonable (typically between 20 and 100 members/day based on historical data). Return only the numerical value of the predicted daily intake as a float (e.g., 50.0).
+Start with a baseline intake of 40 members/day and adjust based on the factors above. Ensure the final predicted intake is reasonable (typically between 20 and 100 members/day based on historical data). Return only the numerical value of the predicted daily intake as a float (e.g., 50.0).
 """
 
 try:
@@ -79,9 +79,9 @@ def predict_box_intake(context, historical_data, box_info):
         logger.info(f"Processing prediction request with context: {context[:100]}...")
         logger.info(f"Box info: {box_info[:100]}...")
         predictions = []
-        for i in range(5):  # 5 runs for averaging
-            logger.info(f"Sending request to LangChain (run {i+1}/5)")
-            for attempt in range(3):  # Retry up to 3 times
+        for i in range(1):  # Reduced to 1 run to minimize timeout risk
+            logger.info(f"Sending request to LangChain (run {i+1}/1)")
+            for attempt in range(3):
                 try:
                     result = chain.run({
                         "context": context,
@@ -96,21 +96,21 @@ def predict_box_intake(context, historical_data, box_info):
                             logger.error("Negative intake value received")
                             raise ValueError("Intake cannot be negative")
                         predictions.append(intake_float)
-                        break  # Success, exit retry loop
+                        break
                     else:
                         logger.warning(f"Invalid intake format in run {i+1}: {result}")
                         raise ValueError("Invalid intake format")
                 except Exception as e:
                     logger.warning(f"Run {i+1} failed (attempt {attempt+1}/3): {str(e)}")
-                    if attempt == 2:  # Last attempt
+                    if attempt == 2:
                         logger.error(f"All attempts failed for run {i+1}")
                         raise
-                    time.sleep(2)  # Wait before retrying
+                    time.sleep(2)
         if not predictions:
             logger.error("No valid intake values collected")
             raise ValueError("No valid intake values collected")
         avg_intake = sum(predictions) / len(predictions)
-        logger.info(f"Averaged intake from 5 runs: {avg_intake}")
+        logger.info(f"Averaged intake from 1 run: {avg_intake}")
         return avg_intake
     except Exception as e:
         logger.error(f"Error in prediction: {str(e)}")
