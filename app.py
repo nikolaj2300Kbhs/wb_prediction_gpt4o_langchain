@@ -47,12 +47,12 @@ Consider the following factors:
 - Number of products, total retail value, and unique categories (more products and higher value generally increase intake, but cap the effect at 10 products and 200 EUR for diminishing returns).
 - Number of full-size products and premium products (>20 EUR) (each premium product adds a 5% boost to intake, up to a maximum of 25%).
 - Total weight (as a proxy for box fullness; weight up to 500g correlates with higher intake, adding a 5% boost per 100g; weight above 500g adds a flat 15% boost).
-- Average product rating, average brand rating, and average category rating (ratings above 4.0 add a 5% boost per 0.1 increment above 4.0, e.g., 4.2 adds 10%).
-- Presence of niche products (niche products reduce intake due to lower relatability; reduce predicted intake by 15-20% per niche product).
+- Average product rating, average brand rating, and average category rating (ratings above 4.0 add a 3% boost per 0.1 increment above 4.0, e.g., 4.2 adds 6%).
+- Presence of niche products (niche products reduce intake due to lower relatability; reduce predicted intake by 20% per niche product).
 - Free gift value and rating (higher value/rating increases intake; add 1% to intake per 10 EUR of free gift value, and add 5% if the free gift rating is above 4.0).
 - Seasonality (boxes launched early in the month may have a 5-10% higher intake; adjust downward if not early-month).
 
-Start with a baseline intake of 40 members/day and adjust based on the factors above. Ensure the final predicted intake is reasonable (typically between 20 and 100 members/day based on historical data). Return only the numerical value of the predicted daily intake as a float (e.g., 50.0).
+Start with a baseline intake of 35 members/day and adjust based on the factors above. After calculating the adjusted intake, clamp the final value to ensure it falls between 20 and 100 members/day (historical range). Return only the numerical value of the predicted daily intake as a float (e.g., 50.0).
 """
 
 try:
@@ -79,7 +79,7 @@ def predict_box_intake(context, historical_data, box_info):
         logger.info(f"Processing prediction request with context: {context[:100]}...")
         logger.info(f"Box info: {box_info[:100]}...")
         predictions = []
-        for i in range(1):  # Reduced to 1 run to minimize timeout risk
+        for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to LangChain (run {i+1}/1)")
             for attempt in range(3):
                 try:
