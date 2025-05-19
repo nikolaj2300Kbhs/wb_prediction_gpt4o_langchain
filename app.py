@@ -26,14 +26,14 @@ try:
         "api_endpoint": "https://generativelanguage.googleapis.com"
     }
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-pro-latest",
+        model="gemini-2.5-pro",
         google_api_key=GOOGLE_API_KEY,
         temperature=0.1,
         max_output_tokens=1000,
         timeout=60,
         client_options=client_options
     )
-    logger.info("Gemini model initialized successfully")
+    logger.info("Gemini 2.5 Pro model initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Gemini model: {str(e)}")
     raise
@@ -128,9 +128,14 @@ def predict_box_intake(context, historical_data, box_info):
         logger.info(f"Box info: {box_info[:100]}...")
         predictions = []
         max_retries = 3
+        total_retry_time = 0
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to LangChain (run {i+1}/1)")
             for attempt in range(max_retries):
+                retry_delay = 2 ** attempt  # Exponential backoff: 2, 4, 8 seconds
+                if total_retry_time + retry_delay > 15:  # Ensure total retry time stays under 15 seconds
+                    logger.error("Total retry time would exceed 15 seconds, aborting retries")
+                    raise ValueError("Retry timeout exceeded")
                 try:
                     result = chain.run({
                         "context": context,
@@ -154,7 +159,8 @@ def predict_box_intake(context, historical_data, box_info):
                     if attempt == max_retries - 1:
                         logger.error(f"All attempts failed for run {i+1}")
                         raise
-                    time.sleep(2 ** attempt)  # Exponential backoff: 2, 4, 8 seconds
+                    time.sleep(retry_delay)
+                    total_retry_time += retry_delay
         if not predictions:
             logger.error("No valid intake values collected")
             raise ValueError("No valid intake values collected")
