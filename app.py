@@ -5,6 +5,7 @@ from langchain.chains import LLMChain
 import os
 import re
 import logging
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +25,8 @@ try:
     llm = ChatOpenAI(
         model="gpt-4o",
         temperature=0.2,
-        max_tokens=1000
+        max_tokens=1000,
+        timeout=30  # Add timeout to prevent hanging
     )
     logger.info("OpenAI model initialized successfully")
 except Exception as e:
@@ -79,21 +81,31 @@ def predict_box_intake(context, historical_data, box_info):
         predictions = []
         for i in range(5):  # 5 runs for averaging
             logger.info(f"Sending request to LangChain (run {i+1}/5)")
-            result = chain.run({
-                "context": context,
-                "historical_data": historical_data,
-                "box_info": box_info
-            })
-            logger.info(f"Run {i+1} response: {result}")
-            match = re.search(r'\d+\.\d+', result)
-            if match:
-                intake_float = float(match.group())
-                if intake_float < 0:
-                    logger.error("Negative intake value received")
-                    raise ValueError("Intake cannot be negative")
-                predictions.append(intake_float)
-            else:
-                logger.warning(f"Invalid intake format in run {i+1}: {result}")
+            for attempt in range(3):  # Retry up to 3 times
+                try:
+                    result = chain.run({
+                        "context": context,
+                        "historical_data": historical_data,
+                        "box_info": box_info
+                    })
+                    logger.info(f"Run {i+1} response: {result}")
+                    match = re.search(r'\d+\.\d+', result)
+                    if match:
+                        intake_float = float(match.group())
+                        if intake_float < 0:
+                            logger.error("Negative intake value received")
+                            raise ValueError("Intake cannot be negative")
+                        predictions.append(intake_float)
+                        break  # Success, exit retry loop
+                    else:
+                        logger.warning(f"Invalid intake format in run {i+1}: {result}")
+                        raise ValueError("Invalid intake format")
+                except Exception as e:
+                    logger.warning(f"Run {i+1} failed (attempt {attempt+1}/3): {str(e)}")
+                    if attempt == 2:  # Last attempt
+                        logger.error(f"All attempts failed for run {i+1}")
+                        raise
+                    time.sleep(2)  # Wait before retrying
         if not predictions:
             logger.error("No valid intake values collected")
             raise ValueError("No valid intake values collected")
