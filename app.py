@@ -22,14 +22,27 @@ if not GOOGLE_API_KEY:
 
 # Set up Gemini 2.5 Pro with LangChain
 try:
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-pro",
-        google_api_key=GOOGLE_API_KEY,
-        temperature=0.1,
-        max_output_tokens=1000,
-        timeout=60
-    )
-    logger.info("Gemini 2.5 Pro model initialized successfully")
+    # First attempt with Gemini 2.5 Pro (standard name)
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-pro",
+            google_api_key=GOOGLE_API_KEY,
+            temperature=0.1,
+            max_output_tokens=1000,
+            timeout=10  # Reduced timeout to fail faster
+        )
+        logger.info("Gemini 2.5 Pro model initialized successfully (standard name)")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Gemini 2.5 Pro (standard name): {str(e)}. Trying alternative model name.")
+        # Second attempt with alternative model name
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-pro-001",  # Alternative model name
+            google_api_key=GOOGLE_API_KEY,
+            temperature=0.1,
+            max_output_tokens=1000,
+            timeout=10
+        )
+        logger.info("Gemini 2.5 Pro model initialized successfully (alternative name gemini-2.5-pro-001)")
 except Exception as e:
     logger.error(f"Failed to initialize Gemini model: {str(e)}")
     raise
