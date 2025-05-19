@@ -23,7 +23,7 @@ if not GOOGLE_API_KEY:
 # Set up Gemini 2.5 Pro with LangChain
 try:
     client_options = {
-        "api_endpoint": "https://generativelanguage.googleapis.com"
+        "api_endpoint": "generativelanguage.googleapis.com"  # Correct domain name without https://
     }
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-pro",
