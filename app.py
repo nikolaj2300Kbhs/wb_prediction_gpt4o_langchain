@@ -42,15 +42,15 @@ Box Information: {box_info}
 You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Based on the context, historical data, and box information, predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR.
 
 Consider the following factors:
-- Number of products, total retail value, and unique categories.
-- Number of full-size products and premium products (>20 EUR).
-- Total weight (as a proxy for box fullness, higher weight often correlates with higher intake).
-- Average product rating, average brand rating, and average category rating (higher ratings generally increase intake).
-- Presence of niche products (niche products may reduce intake due to lower relatability, reduce predicted intake by 10-15% per niche product).
-- Free gift value and rating (higher value/rating often increases intake, add 5% to intake per 10 EUR of free gift value).
-- Seasonality (boxes launched early in the month may have a 20-30% higher intake; adjust downward if not early-month).
+- Number of products, total retail value, and unique categories (more products and higher value generally increase intake, but cap the effect at 10 products and 200 EUR for diminishing returns).
+- Number of full-size products and premium products (>20 EUR) (each premium product adds a 5% boost to intake, up to a maximum of 25%).
+- Total weight (as a proxy for box fullness; weight up to 500g correlates with higher intake, adding a 5% boost per 100g; weight above 500g adds a flat 25% boost).
+- Average product rating, average brand rating, and average category rating (ratings above 4.0 add a 5% boost per 0.1 increment above 4.0, e.g., 4.2 adds 10%).
+- Presence of niche products (niche products reduce intake due to lower relatability; reduce predicted intake by 15-20% per niche product).
+- Free gift value and rating (higher value/rating increases intake; add 2% to intake per 10 EUR of free gift value, and add 5% if the free gift rating is above 4.0).
+- Seasonality (boxes launched early in the month may have a 5-10% higher intake; adjust downward if not early-month).
 
-Return only the numerical value of the predicted daily intake as a float (e.g., 150.0).
+Start with a baseline intake of 50 members/day and adjust based on the factors above. Ensure the final predicted intake is reasonable (typically between 20 and 100 members/day based on historical data). Return only the numerical value of the predicted daily intake as a float (e.g., 50.0).
 """
 
 try:
