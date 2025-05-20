@@ -7,6 +7,7 @@ import time
 import google.api_core.exceptions
 from google.generativeai import GenerativeModel
 from google.api_core.client_options import ClientOptions
+import google.generativeai as genai
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,21 +22,25 @@ if not GOOGLE_API_KEY:
     logger.error("GOOGLE_API_KEY is not set")
     raise ValueError("GOOGLE_API_KEY is not set")
 
-# Set up the Gemini client with the v1 API version
+# Configure the Gemini API client with the v1 endpoint
 try:
-    client_options = ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
-    model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest"]
+    genai.configure(
+        api_key=GOOGLE_API_KEY,
+        client_options=ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
+    )
+    model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
     generative_model = None
     for model_name in model_names:
         try:
+            # Use the v1 API version by specifying the full path
             generative_model = GenerativeModel(
-                model_name=model_name,
+                model_name=f"models/{model_name}",
                 generation_config={"temperature": 0.1, "max_output_tokens": 1000}
             )
-            logger.info(f"Gemini 2.5 Pro model initialized successfully with model name: {model_name}")
+            logger.info(f"Model initialized successfully with model name: {model_name}")
             break
         except Exception as e:
-            logger.warning(f"Failed to initialize Gemini 2.5 Pro with model name {model_name}: {str(e)}")
+            logger.warning(f"Failed to initialize model with name {model_name}: {str(e)}")
             if model_name == model_names[-1]:  # Last model name
                 raise
 except Exception as e:
@@ -133,7 +138,7 @@ def predict_box_intake(context, historical_data, box_info):
                     logger.error("Total retry time would exceed 7 seconds, aborting retries")
                     raise ValueError("Retry timeout exceeded")
                 try:
-                    # Call the Gemini API directly
+                    # Call the Gemini API directly with v1 endpoint
                     response = generative_model.generate_content(
                         prompt_text,
                         generation_config={
