@@ -1,13 +1,11 @@
 from flask import Flask, request, jsonify
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
 import os
 import re
 import logging
 import time
 import google.api_core.exceptions
-from google.generativeai import configure, GenerativeModel
+from google.generativeai import GenerativeModel
 from google.api_core.client_options import ClientOptions
 
 # Configure logging
@@ -23,22 +21,16 @@ if not GOOGLE_API_KEY:
     logger.error("GOOGLE_API_KEY is not set")
     raise ValueError("GOOGLE_API_KEY is not set")
 
-# Configure the underlying google-generativeai client with the correct API version
-client_options = ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
-configure(api_key=GOOGLE_API_KEY, client_options=client_options)
-
-# Set up Gemini 2.5 Pro with LangChain
+# Set up the Gemini client with the v1 API version
 try:
+    client_options = ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
     model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest"]
-    llm = None
+    generative_model = None
     for model_name in model_names:
         try:
-            llm = ChatGoogleGenerativeAI(
-                model=model_name,
-                google_api_key=GOOGLE_API_KEY,
-                temperature=0.1,
-                max_output_tokens=1000,
-                timeout=10  # Reduced timeout to fail faster
+            generative_model = GenerativeModel(
+                model_name=model_name,
+                generation_config={"temperature": 0.1, "max_output_tokens": 1000}
             )
             logger.info(f"Gemini 2.5 Pro model initialized successfully with model name: {model_name}")
             break
@@ -48,14 +40,6 @@ try:
                 raise
 except Exception as e:
     logger.error(f"Failed to initialize Gemini model after trying all model names: {str(e)}")
-    raise
-
-# Test the model with a simple prompt during initialization
-try:
-    response = llm.invoke("Test prompt to verify API access")
-    logger.info(f"Test prompt successful: {response.content}")
-except Exception as e:
-    logger.error(f"Test prompt failed during initialization: {str(e)}")
     raise
 
 # Define prompt template
@@ -123,26 +107,13 @@ You are an expert in evaluating Goodiebox welcome boxes for their ability to att
 Now, calculate the daily intake for the given box using the same steps. Return only the numerical value of the predicted daily intake as a float (e.g., 50.0). Do not return the total retail value or any other number.
 """
 
-try:
-    prompt = PromptTemplate(
-        input_variables=["context", "historical_data", "box_info"],
-        template=template
-    )
-    logger.info("Prompt template created successfully")
-except Exception as e:
-    logger.error(f"Failed to create prompt template: {str(e)}")
-    raise
-
-# Create LLM chain
-try:
-    chain = LLMChain(llm=llm, prompt=prompt)
-    logger.info("LLM chain created successfully")
-except Exception as e:
-    logger.error(f"Failed to create LLM chain: {str(e)}")
-    raise
+prompt = PromptTemplate(
+    input_variables=["context", "historical_data", "box_info"],
+    template=template
+)
 
 def predict_box_intake(context, historical_data, box_info):
-    """Predict daily intake for a box using LangChain."""
+    """Predict daily intake for a box using the Gemini API directly."""
     try:
         logger.info(f"Processing prediction request with context: {context[:100]}...")
         logger.info(f"Box info: {box_info[:100]}...")
@@ -150,7 +121,7 @@ def predict_box_intake(context, historical_data, box_info):
         max_retries = 3
         total_retry_time = 0
         for i in range(1):  # Single run to minimize timeout risk
-            logger.info(f"Sending request to LangChain (run {i+1}/1)")
+            logger.info(f"Sending request to Gemini API (run {i+1}/1)")
             prompt_text = prompt.format(
                 context=context,
                 historical_data=historical_data,
@@ -162,9 +133,15 @@ def predict_box_intake(context, historical_data, box_info):
                     logger.error("Total retry time would exceed 7 seconds, aborting retries")
                     raise ValueError("Retry timeout exceeded")
                 try:
-                    # Call the model directly to bypass chain.run() retries
-                    response = llm.invoke(prompt_text)
-                    result = response.content
+                    # Call the Gemini API directly
+                    response = generative_model.generate_content(
+                        prompt_text,
+                        generation_config={
+                            "temperature": 0.1,
+                            "max_output_tokens": 1000
+                        }
+                    )
+                    result = response.text
                     logger.info(f"Run {i+1} response: {result}")
                     match = re.search(r'\d+\.\d+', result)
                     if match:
@@ -224,9 +201,13 @@ def test_model():
     """Test endpoint to verify Gemini API access."""
     try:
         logger.info("Received request to test Gemini model")
-        response = llm.invoke("Test prompt to verify API access")
-        logger.info(f"Test prompt successful: {response.content}")
-        return jsonify({'status': 'success', 'response': response.content})
+        response = generative_model.generate_content(
+            "Test prompt to verify API access",
+            generation_config={"temperature": 0.1, "max_output_tokens": 1000}
+        )
+        result = response.text
+        logger.info(f"Test prompt successful: {result}")
+        return jsonify({'status': 'success', 'response': result})
     except Exception as e:
         logger.error(f"Test prompt failed: {str(e)}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
