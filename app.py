@@ -6,6 +6,9 @@ import os
 import re
 import logging
 import time
+import google.api_core.exceptions
+from google.generativeai import configure, GenerativeModel
+from google.api_core.client_options import ClientOptions
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,43 +23,39 @@ if not GOOGLE_API_KEY:
     logger.error("GOOGLE_API_KEY is not set")
     raise ValueError("GOOGLE_API_KEY is not set")
 
+# Configure the underlying google-generativeai client with the correct API version
+client_options = ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
+configure(api_key=GOOGLE_API_KEY, client_options=client_options)
+
 # Set up Gemini 2.5 Pro with LangChain
 try:
-    # First attempt with Gemini 2.5 Pro (standard name)
-    try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-pro",
-            google_api_key=GOOGLE_API_KEY,
-            temperature=0.1,
-            max_output_tokens=1000,
-            timeout=10  # Reduced timeout to fail faster
-        )
-        logger.info("Gemini 2.5 Pro model initialized successfully (standard name)")
-    except Exception as e:
-        logger.warning(f"Failed to initialize Gemini 2.5 Pro (standard name): {str(e)}. Trying alternative model name (gemini-2.5-pro-001).")
-        # Second attempt with alternative model name
+    model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest"]
+    llm = None
+    for model_name in model_names:
         try:
             llm = ChatGoogleGenerativeAI(
-                model="gemini-2.5-pro-001",
+                model=model_name,
                 google_api_key=GOOGLE_API_KEY,
                 temperature=0.1,
                 max_output_tokens=1000,
-                timeout=10
+                timeout=10  # Reduced timeout to fail faster
             )
-            logger.info("Gemini 2.5 Pro model initialized successfully (alternative name gemini-2.5-pro-001)")
+            logger.info(f"Gemini 2.5 Pro model initialized successfully with model name: {model_name}")
+            break
         except Exception as e:
-            logger.warning(f"Failed to initialize Gemini 2.5 Pro (alternative name gemini-2.5-pro-001): {str(e)}. Trying final model name (gemini-2.5-pro-latest).")
-            # Third attempt with final model name
-            llm = ChatGoogleGenerativeAI(
-                model="gemini-2.5-pro-latest",
-                google_api_key=GOOGLE_API_KEY,
-                temperature=0.1,
-                max_output_tokens=1000,
-                timeout=10
-            )
-            logger.info("Gemini 2.5 Pro model initialized successfully (final name gemini-2.5-pro-latest)")
+            logger.warning(f"Failed to initialize Gemini 2.5 Pro with model name {model_name}: {str(e)}")
+            if model_name == model_names[-1]:  # Last model name
+                raise
 except Exception as e:
-    logger.error(f"Failed to initialize Gemini model: {str(e)}")
+    logger.error(f"Failed to initialize Gemini model after trying all model names: {str(e)}")
+    raise
+
+# Test the model with a simple prompt during initialization
+try:
+    response = llm.invoke("Test prompt to verify API access")
+    logger.info(f"Test prompt successful: {response.content}")
+except Exception as e:
+    logger.error(f"Test prompt failed during initialization: {str(e)}")
     raise
 
 # Define prompt template
@@ -152,17 +151,20 @@ def predict_box_intake(context, historical_data, box_info):
         total_retry_time = 0
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to LangChain (run {i+1}/1)")
+            prompt_text = prompt.format(
+                context=context,
+                historical_data=historical_data,
+                box_info=box_info
+            )
             for attempt in range(max_retries):
                 retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
                 if total_retry_time + retry_delay > 7:  # Ensure total retry time stays under 7 seconds
                     logger.error("Total retry time would exceed 7 seconds, aborting retries")
                     raise ValueError("Retry timeout exceeded")
                 try:
-                    result = chain.run({
-                        "context": context,
-                        "historical_data": historical_data,
-                        "box_info": box_info
-                    })
+                    # Call the model directly to bypass chain.run() retries
+                    response = llm.invoke(prompt_text)
+                    result = response.content
                     logger.info(f"Run {i+1} response: {result}")
                     match = re.search(r'\d+\.\d+', result)
                     if match:
@@ -216,6 +218,18 @@ def health_check():
     """Health check endpoint."""
     logger.info("Health check requested")
     return jsonify({'status': 'healthy'})
+
+@app.route('/test_model', methods=['GET'])
+def test_model():
+    """Test endpoint to verify Gemini API access."""
+    try:
+        logger.info("Received request to test Gemini model")
+        response = llm.invoke("Test prompt to verify API access")
+        logger.info(f"Test prompt successful: {response.content}")
+        return jsonify({'status': 'success', 'response': response.content})
+    except Exception as e:
+        logger.error(f"Test prompt failed: {str(e)}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
 
 if __name__ == '__main__':
     logger.info("Starting Flask app...")
