@@ -4,11 +4,8 @@ import os
 import re
 import logging
 import time
-import google.api_core.exceptions
-from google.api_core.client_options import ClientOptions
-import google.generativeai as genai
-from google.generativeai.types import GenerationConfig
 import requests
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,34 +19,6 @@ GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 if not GOOGLE_API_KEY:
     logger.error("GOOGLE_API_KEY is not set")
     raise ValueError("GOOGLE_API_KEY is not set")
-
-# Configure the Gemini API client with the v1 endpoint
-try:
-    genai.configure(
-        api_key=GOOGLE_API_KEY,
-        client_options=ClientOptions(api_endpoint="https://generativelanguage.googleapis.com/v1"),
-        transport="rest"  # Use REST transport to simplify retry control
-    )
-    model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
-    generative_model = None
-    for model_name in model_names:
-        try:
-            generative_model = genai.GenerativeModel(
-                model_name=f"models/{model_name}",
-                generation_config=GenerationConfig(
-                    temperature=0.1,
-                    max_output_tokens=1000
-                )
-            )
-            logger.info(f"Model initialized successfully with model name: {model_name}")
-            break
-        except Exception as e:
-            logger.warning(f"Failed to initialize model with name {model_name}: {str(e)}")
-            if model_name == model_names[-1]:  # Last model name
-                raise
-except Exception as e:
-    logger.error(f"Failed to initialize Gemini model after trying all model names: {str(e)}")
-    raise
 
 # Define prompt template
 template = """
@@ -121,6 +90,24 @@ prompt = PromptTemplate(
     template=template
 )
 
+def call_gemini_api(prompt_text, model_name):
+    """Make a raw API call to the Gemini API with the v1 endpoint."""
+    url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GOOGLE_API_KEY}"
+    }
+    payload = {
+        "contents": [{"parts": [{"text": prompt_text}]}],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": 1000
+        }
+    }
+    response = requests.post(url, headers=headers, json=payload, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
 def predict_box_intake(context, historical_data, box_info):
     """Predict daily intake for a box using the Gemini API directly."""
     try:
@@ -129,6 +116,7 @@ def predict_box_intake(context, historical_data, box_info):
         predictions = []
         max_retries = 3
         total_retry_time = 0
+        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to Gemini API (run {i+1}/1)")
             prompt_text = prompt.format(
@@ -136,41 +124,39 @@ def predict_box_intake(context, historical_data, box_info):
                 historical_data=historical_data,
                 box_info=box_info
             )
-            for attempt in range(max_retries):
-                retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
-                if total_retry_time + retry_delay > 7:  # Ensure total retry time stays under 7 seconds
-                    logger.error("Total retry time would exceed 7 seconds, aborting retries")
-                    raise ValueError("Retry timeout exceeded")
-                try:
-                    # Call the Gemini API directly with v1 endpoint, no retries
-                    response = generative_model.generate_content(
-                        prompt_text,
-                        generation_config={
-                            "temperature": 0.1,
-                            "max_output_tokens": 1000
-                        },
-                        request_options={"timeout": 10}  # Enforce a 10-second timeout per attempt
-                    )
-                    result = response.text
-                    logger.info(f"Run {i+1} response: {result}")
-                    match = re.search(r'\d+\.\d+', result)
-                    if match:
-                        intake_float = float(match.group())
-                        if intake_float < 0:
-                            logger.error("Negative intake value received")
-                            raise ValueError("Intake cannot be negative")
-                        predictions.append(intake_float)
-                        break
-                    else:
-                        logger.warning(f"Invalid intake format in run {i+1}: {result}")
-                        raise ValueError("Invalid intake format")
-                except Exception as e:
-                    logger.warning(f"Run {i+1} failed (attempt {attempt+1}/{max_retries}): {str(e)}")
-                    if attempt == max_retries - 1:
-                        logger.error(f"All attempts failed for run {i+1}")
-                        raise
-                    time.sleep(retry_delay)
-                    total_retry_time += retry_delay
+            for model_name in model_names:
+                for attempt in range(max_retries):
+                    retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
+                    if total_retry_time + retry_delay > 7:  # Ensure total retry time stays under 7 seconds
+                        logger.error("Total retry time would exceed 7 seconds, aborting retries")
+                        raise ValueError("Retry timeout exceeded")
+                    try:
+                        logger.info(f"Attempting to call Gemini API with model: {model_name}")
+                        response = call_gemini_api(prompt_text, model_name)
+                        result = response["candidates"][0]["content"]["parts"][0]["text"]
+                        logger.info(f"Run {i+1} response: {result}")
+                        match = re.search(r'\d+\.\d+', result)
+                        if match:
+                            intake_float = float(match.group())
+                            if intake_float < 0:
+                                logger.error("Negative intake value received")
+                                raise ValueError("Intake cannot be negative")
+                            predictions.append(intake_float)
+                            break
+                        else:
+                            logger.warning(f"Invalid intake format in run {i+1}: {result}")
+                            raise ValueError("Invalid intake format")
+                    except Exception as e:
+                        logger.warning(f"Run {i+1} failed with model {model_name} (attempt {attempt+1}/{max_retries}): {str(e)}")
+                        if attempt == max_retries - 1 and model_name == model_names[-1]:
+                            logger.error(f"All attempts and model names failed for run {i+1}")
+                            raise
+                        time.sleep(retry_delay)
+                        total_retry_time += retry_delay
+                        continue
+                    break  # Break inner loop if successful
+                if predictions:  # If we got a prediction, break outer loop
+                    break
         if not predictions:
             logger.error("No valid intake values collected")
             raise ValueError("No valid intake values collected")
@@ -211,14 +197,30 @@ def test_model():
     """Test endpoint to verify Gemini API access."""
     try:
         logger.info("Received request to test Gemini model")
-        response = generative_model.generate_content(
-            "Test prompt to verify API access",
-            generation_config={"temperature": 0.1, "max_output_tokens": 1000},
-            request_options={"timeout": 10}  # Enforce a 10-second timeout
-        )
-        result = response.text
-        logger.info(f"Test prompt successful: {result}")
-        return jsonify({'status': 'success', 'response': result})
+        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
+        max_retries = 3
+        total_retry_time = 0
+        for model_name in model_names:
+            for attempt in range(max_retries):
+                retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
+                if total_retry_time + retry_delay > 7:  # Ensure total retry time stays under 7 seconds
+                    logger.error("Total retry time would exceed 7 seconds, aborting retries")
+                    raise ValueError("Retry timeout exceeded")
+                try:
+                    logger.info(f"Attempting to call Gemini API with model: {model_name}")
+                    response = call_gemini_api("Test prompt to verify API access", model_name)
+                    result = response["candidates"][0]["content"]["parts"][0]["text"]
+                    logger.info(f"Test prompt successful: {result}")
+                    return jsonify({'status': 'success', 'response': result})
+                except Exception as e:
+                    logger.warning(f"Test prompt failed with model {model_name} (attempt {attempt+1}/{max_retries}): {str(e)}")
+                    if attempt == max_retries - 1 and model_name == model_names[-1]:
+                        logger.error("All attempts and model names failed")
+                        raise
+                    time.sleep(retry_delay)
+                    total_retry_time += retry_delay
+                    continue
+                break  # Break inner loop if successful
     except Exception as e:
         logger.error(f"Test prompt failed: {str(e)}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
