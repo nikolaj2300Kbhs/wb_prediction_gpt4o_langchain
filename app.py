@@ -5,8 +5,9 @@ import re
 import logging
 import time
 import google.api_core.exceptions
-from google.generativeai import GenerativeModel
 from google.api_core.client_options import ClientOptions
+from google.api_core import grpc_helpers
+from google.generativeai import GenerativeModel
 import google.generativeai as genai
 
 # Configure logging
@@ -26,13 +27,12 @@ if not GOOGLE_API_KEY:
 try:
     genai.configure(
         api_key=GOOGLE_API_KEY,
-        client_options=ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
+        client_options=ClientOptions(api_endpoint="https://generativelanguage.googleapis.com/v1")
     )
     model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
     generative_model = None
     for model_name in model_names:
         try:
-            # Use the v1 API version by specifying the full path
             generative_model = GenerativeModel(
                 model_name=f"models/{model_name}",
                 generation_config={"temperature": 0.1, "max_output_tokens": 1000}
@@ -67,7 +67,7 @@ You are an expert in evaluating Goodiebox welcome boxes for their ability to att
 - **Average Ratings**: For each of product, brand, and category ratings, add a 3% boost for every 0.1 increment above 4.0. For example, a rating of 4.2 adds 6% (0.2 * 3%). Sum the boosts from all three ratings.
 - **Niche Products**: Each niche product reduces intake by 20%. For example, 1 niche product reduces intake by 20%, 2 niche products by 40%.
 - **Free Gift Value and Rating**: Add 1% to intake for every 10 EUR of free gift value (e.g., 50 EUR adds 5%). Add an additional 5% if the free gift rating is above 4.0.
-- **Seasonality**: If the launch month is early in the month (e.g., January, October), add a 5% boost. Otherwise, no adjustment.
+- **Seasonality**: If the launch month is early in the month (e.g., January, October), add a 5% boost. The launch month for ALL-2410-WB-6 is October, for ALL-2501-WB-2 is January, and for ALL-2503-WB is March.
 
 **Step 3: Calculate the Total Adjustment**
 - Sum the percentage boosts and reductions to get the total adjustment. For example, if boosts are +20% (retail value), +15% (premium products), +20% (weight), +9% (ratings), +10% (free gift), +5% (seasonality), and reductions are -20% (niche products), the total adjustment is 20 + 15 + 20 + 9 + 10 + 5 - 20 = 59%.
