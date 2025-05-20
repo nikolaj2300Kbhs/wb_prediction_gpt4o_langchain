@@ -6,9 +6,8 @@ import logging
 import time
 import google.api_core.exceptions
 from google.api_core.client_options import ClientOptions
-from google.api_core import grpc_helpers
-from google.generativeai import GenerativeModel
 import google.generativeai as genai
+from google.generativeai.types import GenerationConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,15 +26,18 @@ if not GOOGLE_API_KEY:
 try:
     genai.configure(
         api_key=GOOGLE_API_KEY,
-        client_options=ClientOptions(api_endpoint="https://generativelanguage.googleapis.com/v1")
+        client_options=ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
     )
     model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
     generative_model = None
     for model_name in model_names:
         try:
-            generative_model = GenerativeModel(
+            generative_model = genai.GenerativeModel(
                 model_name=f"models/{model_name}",
-                generation_config={"temperature": 0.1, "max_output_tokens": 1000}
+                generation_config=GenerationConfig(
+                    temperature=0.1,
+                    max_output_tokens=1000
+                )
             )
             logger.info(f"Model initialized successfully with model name: {model_name}")
             break
