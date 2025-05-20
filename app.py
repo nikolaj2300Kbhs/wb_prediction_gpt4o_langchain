@@ -33,16 +33,28 @@ try:
         )
         logger.info("Gemini 2.5 Pro model initialized successfully (standard name)")
     except Exception as e:
-        logger.warning(f"Failed to initialize Gemini 2.5 Pro (standard name): {str(e)}. Trying alternative model name.")
+        logger.warning(f"Failed to initialize Gemini 2.5 Pro (standard name): {str(e)}. Trying alternative model name (gemini-2.5-pro-001).")
         # Second attempt with alternative model name
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-pro-001",  # Alternative model name
-            google_api_key=GOOGLE_API_KEY,
-            temperature=0.1,
-            max_output_tokens=1000,
-            timeout=10
-        )
-        logger.info("Gemini 2.5 Pro model initialized successfully (alternative name gemini-2.5-pro-001)")
+        try:
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-2.5-pro-001",
+                google_api_key=GOOGLE_API_KEY,
+                temperature=0.1,
+                max_output_tokens=1000,
+                timeout=10
+            )
+            logger.info("Gemini 2.5 Pro model initialized successfully (alternative name gemini-2.5-pro-001)")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Gemini 2.5 Pro (alternative name gemini-2.5-pro-001): {str(e)}. Trying final model name (gemini-2.5-pro-latest).")
+            # Third attempt with final model name
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-2.5-pro-latest",
+                google_api_key=GOOGLE_API_KEY,
+                temperature=0.1,
+                max_output_tokens=1000,
+                timeout=10
+            )
+            logger.info("Gemini 2.5 Pro model initialized successfully (final name gemini-2.5-pro-latest)")
 except Exception as e:
     logger.error(f"Failed to initialize Gemini model: {str(e)}")
     raise
@@ -141,9 +153,9 @@ def predict_box_intake(context, historical_data, box_info):
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to LangChain (run {i+1}/1)")
             for attempt in range(max_retries):
-                retry_delay = 2 ** attempt  # Exponential backoff: 2, 4, 8 seconds
-                if total_retry_time + retry_delay > 15:  # Ensure total retry time stays under 15 seconds
-                    logger.error("Total retry time would exceed 15 seconds, aborting retries")
+                retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
+                if total_retry_time + retry_delay > 7:  # Ensure total retry time stays under 7 seconds
+                    logger.error("Total retry time would exceed 7 seconds, aborting retries")
                     raise ValueError("Retry timeout exceeded")
                 try:
                     result = chain.run({
