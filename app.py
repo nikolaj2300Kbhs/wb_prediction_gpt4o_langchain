@@ -92,10 +92,9 @@ prompt = PromptTemplate(
 
 def call_gemini_api(prompt_text, model_name):
     """Make a raw API call to the Gemini API with the v1 endpoint."""
-    url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent"
+    url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={GOOGLE_API_KEY}"
     headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {GOOGLE_API_KEY}"
+        "Content-Type": "application/json"
     }
     payload = {
         "contents": [{"parts": [{"text": prompt_text}]}],
@@ -116,7 +115,7 @@ def predict_box_intake(context, historical_data, box_info):
         predictions = []
         max_retries = 3
         total_retry_time = 0
-        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
+        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to Gemini API (run {i+1}/1)")
             prompt_text = prompt.format(
@@ -197,7 +196,7 @@ def test_model():
     """Test endpoint to verify Gemini API access."""
     try:
         logger.info("Received request to test Gemini model")
-        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
+        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
         max_retries = 3
         total_retry_time = 0
         for model_name in model_names:
