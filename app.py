@@ -114,6 +114,22 @@ def call_gemini_api(prompt_text, model_name):
             error_detail += f" - Response: {e.response.text}"
         raise Exception(error_detail)
 
+def list_gemini_models():
+    """List available models using the Gemini API."""
+    url = f"https://generativelanguage.googleapis.com/v1/models?key={GOOGLE_API_KEY}"
+    headers = {
+        "Content-Type": "application/json"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        error_detail = str(e)
+        if hasattr(e, 'response') and e.response is not None:
+            error_detail += f" - Response: {e.response.text}"
+        raise Exception(error_detail)
+
 def predict_box_intake(context, historical_data, box_info):
     """Predict daily intake for a box using the Gemini API directly."""
     try:
@@ -122,7 +138,8 @@ def predict_box_intake(context, historical_data, box_info):
         predictions = []
         max_retries = 3
         total_retry_time = 0
-        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
+        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-preview", "gemini-2.5-experimental", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
+        successful_model = None
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to Gemini API (run {i+1}/1)")
             prompt_text = prompt.format(
@@ -130,39 +147,70 @@ def predict_box_intake(context, historical_data, box_info):
                 historical_data=historical_data,
                 box_info=box_info
             )
+            # First pass: try each model once
             for model_name in model_names:
-                for attempt in range(max_retries):
-                    retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
-                    if total_retry_time + retry_delay > 7:  # Ensure total retry time stays under 7 seconds
-                        logger.error("Total retry time would exceed 7 seconds, aborting retries")
-                        raise ValueError("Retry timeout exceeded")
-                    try:
-                        logger.info(f"Attempting to call Gemini API with model: {model_name}")
-                        response = call_gemini_api(prompt_text, model_name)
-                        result = response["candidates"][0]["content"]["parts"][0]["text"]
-                        logger.info(f"Run {i+1} response: {result}")
-                        match = re.search(r'\d+\.\d+', result)
-                        if match:
-                            intake_float = float(match.group())
-                            if intake_float < 0:
-                                logger.error("Negative intake value received")
-                                raise ValueError("Intake cannot be negative")
-                            predictions.append(intake_float)
-                            break
-                        else:
-                            logger.warning(f"Invalid intake format in run {i+1}: {result}")
-                            raise ValueError("Invalid intake format")
-                    except Exception as e:
-                        logger.warning(f"Run {i+1} failed with model {model_name} (attempt {attempt+1}/{max_retries}): {str(e)}")
-                        if attempt == max_retries - 1 and model_name == model_names[-1]:
-                            logger.error(f"All attempts and model names failed for run {i+1}")
-                            raise
-                        time.sleep(retry_delay)
-                        total_retry_time += retry_delay
-                        continue
-                    break  # Break inner loop if successful
-                if predictions:  # If we got a prediction, break outer loop
-                    break
+                if total_retry_time >= 7:  # Ensure total retry time stays under 7 seconds
+                    logger.error("Total retry time would exceed 7 seconds, aborting retries")
+                    raise ValueError("Retry timeout exceeded")
+                try:
+                    logger.info(f"Attempting to call Gemini API with model: {model_name}")
+                    response = call_gemini_api(prompt_text, model_name)
+                    result = response["candidates"][0]["content"]["parts"][0]["text"]
+                    logger.info(f"Run {i+1} response: {result}")
+                    match = re.search(r'\d+\.\d+', result)
+                    if match:
+                        intake_float = float(match.group())
+                        if intake_float < 0:
+                            logger.error("Negative intake value received")
+                            raise ValueError("Intake cannot be negative")
+                        successful_model = model_name
+                        predictions.append(intake_float)
+                        break
+                    else:
+                        logger.warning(f"Invalid intake format in run {i+1}: {result}")
+                        raise ValueError("Invalid intake format")
+                except Exception as e:
+                    logger.warning(f"Initial attempt failed with model {model_name}: {str(e)}")
+                    continue
+                finally:
+                    total_retry_time += 1  # Approximate 1 second per attempt
+            if predictions:  # If successful, break
+                break
+            # Second pass: retry the first successful model or continue with others
+            if not successful_model:
+                for model_name in model_names:
+                    for attempt in range(max_retries):
+                        retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
+                        if total_retry_time + retry_delay > 7:
+                            logger.error("Total retry time would exceed 7 seconds, aborting retries")
+                            raise ValueError("Retry timeout exceeded")
+                        try:
+                            logger.info(f"Retrying Gemini API with model: {model_name} (attempt {attempt+1}/{max_retries})")
+                            response = call_gemini_api(prompt_text, model_name)
+                            result = response["candidates"][0]["content"]["parts"][0]["text"]
+                            logger.info(f"Run {i+1} response: {result}")
+                            match = re.search(r'\d+\.\d+', result)
+                            if match:
+                                intake_float = float(match.group())
+                                if intake_float < 0:
+                                    logger.error("Negative intake value received")
+                                    raise ValueError("Intake cannot be negative")
+                                predictions.append(intake_float)
+                                break
+                            else:
+                                logger.warning(f"Invalid intake format in run {i+1}: {result}")
+                                raise ValueError("Invalid intake format")
+                        except Exception as e:
+                            logger.warning(f"Run {i+1} failed with model {model_name} (attempt {attempt+1}/{max_retries}): {str(e)}")
+                            if attempt == max_retries - 1 and model_name == model_names[-1]:
+                                logger.error(f"All attempts and model names failed for run {i+1}")
+                                raise
+                            time.sleep(retry_delay)
+                            total_retry_time += retry_delay
+                            continue
+                        break  # Break inner loop if successful
+                    if predictions:  # If successful, break
+                        break
         if not predictions:
             logger.error("No valid intake values collected")
             raise ValueError("No valid intake values collected")
@@ -198,22 +246,49 @@ def health_check():
     logger.info("Health check requested")
     return jsonify({'status': 'healthy'})
 
+@app.route('/list_models', methods=['GET'])
+def list_models():
+    """Endpoint to list available Gemini models."""
+    try:
+        logger.info("Received request to list Gemini models")
+        models = list_gemini_models()
+        logger.info(f"Available models: {models}")
+        return jsonify({'status': 'success', 'models': models})
+    except Exception as e:
+        logger.error(f"Failed to list models: {str(e)}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
 @app.route('/test_model', methods=['GET'])
 def test_model():
     """Test endpoint to verify Gemini API access."""
     try:
         logger.info("Received request to test Gemini model")
-        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
+        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-preview", "gemini-2.5-experimental", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
         max_retries = 3
         total_retry_time = 0
         for model_name in model_names:
+            if total_retry_time >= 7:  # Ensure total retry time stays under 7 seconds
+                logger.error("Total retry time would exceed 7 seconds, aborting retries")
+                raise ValueError("Retry timeout exceeded")
+            try:
+                logger.info(f"Attempting to call Gemini API with model: {model_name}")
+                response = call_gemini_api("Test prompt to verify API access", model_name)
+                result = response["candidates"][0]["content"]["parts"][0]["text"]
+                logger.info(f"Test prompt successful: {result}")
+                return jsonify({'status': 'success', 'response': result})
+            except Exception as e:
+                logger.warning(f"Initial attempt failed with model {model_name}: {str(e)}")
+                total_retry_time += 1  # Approximate 1 second per attempt
+                continue
+        # If initial attempts fail, retry each model
+        for model_name in model_names:
             for attempt in range(max_retries):
                 retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
-                if total_retry_time + retry_delay > 7:  # Ensure total retry time stays under 7 seconds
+                if total_retry_time + retry_delay > 7:
                     logger.error("Total retry time would exceed 7 seconds, aborting retries")
                     raise ValueError("Retry timeout exceeded")
                 try:
-                    logger.info(f"Attempting to call Gemini API with model: {model_name}")
+                    logger.info(f"Retrying Gemini API with model: {model_name} (attempt {attempt+1}/{max_retries})")
                     response = call_gemini_api("Test prompt to verify API access", model_name)
                     result = response["candidates"][0]["content"]["parts"][0]["text"]
                     logger.info(f"Test prompt successful: {result}")
