@@ -8,6 +8,7 @@ import google.api_core.exceptions
 from google.api_core.client_options import ClientOptions
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
+import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +27,8 @@ if not GOOGLE_API_KEY:
 try:
     genai.configure(
         api_key=GOOGLE_API_KEY,
-        client_options=ClientOptions(api_endpoint="https://generativelanguage.googleapis.com")
+        client_options=ClientOptions(api_endpoint="https://generativelanguage.googleapis.com/v1"),
+        transport="rest"  # Use REST transport to simplify retry control
     )
     model_names = ["gemini-2.5-pro", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
     generative_model = None
@@ -140,13 +142,14 @@ def predict_box_intake(context, historical_data, box_info):
                     logger.error("Total retry time would exceed 7 seconds, aborting retries")
                     raise ValueError("Retry timeout exceeded")
                 try:
-                    # Call the Gemini API directly with v1 endpoint
+                    # Call the Gemini API directly with v1 endpoint, no retries
                     response = generative_model.generate_content(
                         prompt_text,
                         generation_config={
                             "temperature": 0.1,
                             "max_output_tokens": 1000
-                        }
+                        },
+                        request_options={"timeout": 10}  # Enforce a 10-second timeout per attempt
                     )
                     result = response.text
                     logger.info(f"Run {i+1} response: {result}")
@@ -210,7 +213,8 @@ def test_model():
         logger.info("Received request to test Gemini model")
         response = generative_model.generate_content(
             "Test prompt to verify API access",
-            generation_config={"temperature": 0.1, "max_output_tokens": 1000}
+            generation_config={"temperature": 0.1, "max_output_tokens": 1000},
+            request_options={"timeout": 10}  # Enforce a 10-second timeout
         )
         result = response.text
         logger.info(f"Test prompt successful: {result}")
