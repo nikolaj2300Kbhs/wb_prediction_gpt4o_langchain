@@ -104,7 +104,7 @@ def call_gemini_api(prompt_text, model_name):
         }
     }
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response = requests.post(url, headers=headers, json=payload, timeout=5)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -138,7 +138,7 @@ def predict_box_intake(context, historical_data, box_info):
         predictions = []
         max_retries = 3
         total_retry_time = 0
-        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-preview", "gemini-2.5-experimental", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
+        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-preview", "gemini-2.5-experimental", "gemini-2.5-pro-exp", "gemini-2.5-pro-001", "gemini-2.5-pro-002", "gemini-2.5-pro-latest", "gemini-1.5-pro", "gemini-1.5-pro-latest"]
         successful_model = None
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to Gemini API (run {i+1}/1)")
@@ -171,16 +171,15 @@ def predict_box_intake(context, historical_data, box_info):
                         raise ValueError("Invalid intake format")
                 except Exception as e:
                     logger.warning(f"Initial attempt failed with model {model_name}: {str(e)}")
+                    total_retry_time += 0.5  # Approximate 0.5 seconds per attempt
                     continue
-                finally:
-                    total_retry_time += 1  # Approximate 1 second per attempt
             if predictions:  # If successful, break
                 break
             # Second pass: retry the first successful model or continue with others
             if not successful_model:
                 for model_name in model_names:
                     for attempt in range(max_retries):
-                        retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
+                        retry_delay = 0.5 * (2 ** attempt)  # Exponential backoff: 0.5, 1, 2 seconds
                         if total_retry_time + retry_delay > 7:
                             logger.error("Total retry time would exceed 7 seconds, aborting retries")
                             raise ValueError("Retry timeout exceeded")
@@ -263,7 +262,7 @@ def test_model():
     """Test endpoint to verify Gemini API access."""
     try:
         logger.info("Received request to test Gemini model")
-        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-preview", "gemini-2.5-experimental", "gemini-2.5-pro-001", "gemini-2.5-pro-latest", "gemini-1.5-pro"]
+        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-preview", "gemini-2.5-experimental", "gemini-2.5-pro-exp", "gemini-2.5-pro-001", "gemini-2.5-pro-002", "gemini-2.5-pro-latest", "gemini-1.5-pro", "gemini-1.5-pro-latest"]
         max_retries = 3
         total_retry_time = 0
         for model_name in model_names:
@@ -278,12 +277,12 @@ def test_model():
                 return jsonify({'status': 'success', 'response': result})
             except Exception as e:
                 logger.warning(f"Initial attempt failed with model {model_name}: {str(e)}")
-                total_retry_time += 1  # Approximate 1 second per attempt
+                total_retry_time += 0.5  # Approximate 0.5 seconds per attempt
                 continue
         # If initial attempts fail, retry each model
         for model_name in model_names:
             for attempt in range(max_retries):
-                retry_delay = 1 * (2 ** attempt)  # Exponential backoff: 1, 2, 4 seconds
+                retry_delay = 0.5 * (2 ** attempt)  # Exponential backoff: 0.5, 1, 2 seconds
                 if total_retry_time + retry_delay > 7:
                     logger.error("Total retry time would exceed 7 seconds, aborting retries")
                     raise ValueError("Retry timeout exceeded")
