@@ -138,7 +138,8 @@ def predict_box_intake(context, historical_data, box_info):
         predictions = []
         max_retries = 3
         total_retry_time = 0
-        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-preview", "gemini-2.5-experimental", "gemini-2.5-pro-exp", "gemini-2.5-pro-001", "gemini-2.5-pro-002", "gemini-2.5-pro-latest", "gemini-1.5-pro", "gemini-1.5-pro-latest"]
+        # Prioritize gemini-1.5-pro since it worked in /test_model
+        model_names = ["gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002"]
         successful_model = None
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to Gemini API (run {i+1}/1)")
@@ -232,7 +233,7 @@ def box_score():
         box_info = data['box_info']
         context_text = data['context']
         logger.info("Received request to predict box intake")
-        intake = predict_box_intake(context_text, historical_data, box_info)
+        intake = predict_box_intake(context_text, historical_data, context_text)
         logger.info(f"Returning predicted intake: {intake}")
         return jsonify({'predicted_intake': intake})
     except Exception as e:
@@ -262,7 +263,7 @@ def test_model():
     """Test endpoint to verify Gemini API access."""
     try:
         logger.info("Received request to test Gemini model")
-        model_names = ["gemini-2.5-pro", "gemini-2.5-pro-preview-03-25", "gemini-2.5-pro-exp-0409-001", "gemini-2.5-pro-preview", "gemini-2.5-experimental", "gemini-2.5-pro-exp", "gemini-2.5-pro-001", "gemini-2.5-pro-002", "gemini-2.5-pro-latest", "gemini-1.5-pro", "gemini-1.5-pro-latest"]
+        model_names = ["gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002"]
         max_retries = 3
         total_retry_time = 0
         for model_name in model_names:
