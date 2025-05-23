@@ -40,17 +40,17 @@ You are an expert in evaluating Goodiebox welcome boxes for their ability to att
   ALL-2501-WB-2  41.524402
 
 **Step 2: Apply Adjustments Based on Box Information**
-- **Retail Value Adjustment**: For every 10 EUR above 50 EUR in total retail value, add a 2% boost to intake, up to a maximum of 30%. For example, a retail value of 150 EUR (100 EUR above 50) adds a 20% boost (100 / 10 * 2%), while a value of 300 EUR adds the maximum 30% boost.
-- **Premium Products (>20 EUR)**: Each premium product adds a 3% boost to intake, up to a maximum of 15%. For example, 3 premium products add a 9% boost (3 * 3%), 5 or more add a 15% boost.
-- **Total Weight**: Weight up to 500g adds a 3% boost per 100g; weight above 500g adds a flat 12% boost. For example, 400g adds a 12% boost (4 * 3%), 600g adds a 12% boost.
-- **Average Ratings**: For each of product, brand, and category ratings, add a 3% boost for every 0.1 increment above 4.0. For example, a rating of 4.2 adds 6% (0.2 * 3%). Sum the boosts from all three ratings.
+- **Retail Value Adjustment**: For every 10 EUR above 50 EUR in total retail value, add a 1.5% boost to intake, up to a maximum of 22.5%. For example, a retail value of 150 EUR (100 EUR above 50) adds a 15% boost (100 / 10 * 1.5%), while a value of 300 EUR adds the maximum 22.5% boost.
+- **Premium Products (>20 EUR)**: Each premium product adds a 2% boost to intake, up to a maximum of 10%. For example, 3 premium products add a 6% boost (3 * 2%), 5 or more add a 10% boost.
+- **Total Weight**: Weight up to 500g adds a 2% boost per 100g; weight above 500g adds a flat 8% boost. For example, 400g adds a 8% boost (4 * 2%), 600g adds a 8% boost.
+- **Average Ratings**: For each of product, brand, and category ratings, add a 2% boost for every 0.1 increment above 4.0. For example, a rating of 4.2 adds 4% (0.2 * 2%). Sum the boosts from all three ratings.
 - **Niche Products**: Each niche product reduces intake by 1%. For example, 1 niche product reduces intake by 1%, 2 niche products by 2%.
-- **Free Gift Value and Rating**: Add 1% to intake for every 10 EUR of free gift value (e.g., 50 EUR adds 5%). Add an additional 3% if the free gift rating is above 4.0.
-- **Seasonality**: If the launch month is early in the month (e.g., January, October), add a 3% boost. Otherwise, no adjustment.
+- **Free Gift Value and Rating**: Add 0.5% to intake for every 10 EUR of free gift value (e.g., 50 EUR adds 2.5%). Add an additional 2% if the free gift rating is above 4.0.
+- **Seasonality**: If the launch month is early in the month (e.g., January, October), add a 2% boost. Otherwise, no adjustment.
 
 **Step 3: Calculate the Total Adjustment**
-- Sum the percentage boosts and reductions to get the total adjustment. For example, if boosts are +20% (retail value), +9% (premium products), +12% (weight), +9% (ratings), +8% (free gift), +3% (seasonality), and reductions are -1% (niche products), the total adjustment is 20 + 9 + 12 + 9 + 8 + 3 - 1 = 60%.
-- Apply the total adjustment to the baseline: Adjusted Intake = Baseline * (1 + Total Adjustment / 100). For example, if Baseline = 81.719008, then 81.719008 * (1 + 0.60) = 130.7504128.
+- Sum the percentage boosts and reductions to get the total adjustment. For example, if boosts are +15% (retail value), +6% (premium products), +8% (weight), +6% (ratings), +4.5% (free gift), +2% (seasonality), and reductions are -1% (niche products), the total adjustment is 15 + 6 + 8 + 6 + 4.5 + 2 - 1 = 40.5%.
+- Apply the total adjustment to the baseline: Adjusted Intake = Baseline * (1 + Total Adjustment / 100). For example, if Baseline = 81.719008, then 81.719008 * (1 + 0.405) = 114.80662624.
 
 **Step 4: Clamp the Final Value**
 - Ensure the final predicted intake is between 1 and 100 members/day. If the adjusted intake is below 1, set it to 1; if above 100, set it to 100.
@@ -61,15 +61,15 @@ You are an expert in evaluating Goodiebox welcome boxes for their ability to att
   - Box Information: Box SKU: ALL-2410-WB-6, Number of products: 7, Number of premium products (>20 EUR): 3, Total weight: 400g, Number of niche products: 1, Average product rating: 4.2, Average category rating: 4.1, Average brand rating: 4.0, Free gift: Value: 50 EUR, Rating: 4.5, Launch month: January, Total retail value (for reference only, do not use as prediction): 150 EUR
   - Step 1: Baseline = 81.719008 (from historical data for ALL-2410-WB-6).
   - Step 2:
-    - Retail Value: 150 EUR (100 EUR above 50) = 20% boost (100 / 10 * 2%).
-    - Premium products: 3 * 3% = 9% boost.
-    - Weight: 400g = 4 * 3% = 12% boost.
-    - Ratings: Product 4.2 (6%), Category 4.1 (3%), Brand 4.0 (0%) = 9% boost.
+    - Retail Value: 150 EUR (100 EUR above 50) = 15% boost (100 / 10 * 1.5%).
+    - Premium products: 3 * 2% = 6% boost.
+    - Weight: 400g = 4 * 2% = 8% boost.
+    - Ratings: Product 4.2 (4%), Category 4.1 (2%), Brand 4.0 (0%) = 6% boost.
     - Niche products: 1 * 1% = 1% reduction.
-    - Free gift: 50 EUR = 5% + 3% (rating > 4.0) = 8% boost.
-    - Seasonality: Early-month = 3% boost.
-  - Step 3: Total Adjustment = 20 + 9 + 12 + 9 + 8 + 3 - 1 = 60%.
-  - Adjusted Intake = 81.719008 * (1 + 0.60) = 130.7504128.
+    - Free gift: 50 EUR = 2.5% + 2% (rating > 4.0) = 4.5% boost.
+    - Seasonality: Early-month = 2% boost.
+  - Step 3: Total Adjustment = 15 + 6 + 8 + 6 + 4.5 + 2 - 1 = 40.5%.
+  - Adjusted Intake = 81.719008 * (1 + 0.405) = 114.80662624.
   - Step 4: Clamped Intake = 100 (capped at 100).
   - Output: 100.0
 
@@ -78,17 +78,17 @@ You are an expert in evaluating Goodiebox welcome boxes for their ability to att
   - Box Information: Box SKU: ALL-2501-WB-2, Number of products: 8, Number of premium products (>20 EUR): 5, Total weight: 600g, Number of niche products: 2, Average product rating: 4.3, Average category rating: 4.2, Average brand rating: 4.1, Free gift: Value: 65 EUR, Rating: 4.33, Launch month: March, Total retail value (for reference only, do not use as prediction): 250 EUR
   - Step 1: Baseline = 41.524402 (from historical data for ALL-2501-WB-2).
   - Step 2:
-    - Retail Value: 250 EUR (200 EUR above 50) = 30% boost (capped at 30%).
-    - Premium products: 5 * 3% = 15% boost (capped).
-    - Weight: 600g = 12% boost.
-    - Ratings: Product 4.3 (9%), Category 4.2 (6%), Brand 4.1 (3%) = 18% boost.
+    - Retail Value: 250 EUR (200 EUR above 50) = 22.5% boost (capped at 22.5%).
+    - Premium products: 5 * 2% = 10% boost (capped).
+    - Weight: 600g = 8% boost.
+    - Ratings: Product 4.3 (6%), Category 4.2 (4%), Brand 4.1 (2%) = 12% boost.
     - Niche products: 2 * 1% = 2% reduction.
-    - Free gift: 65 EUR = 6.5% + 3% (rating > 4.0) = 9.5% boost.
+    - Free gift: 65 EUR = 3.25% + 2% (rating > 4.0) = 5.25% boost.
     - Seasonality: Not early-month = 0% boost.
-  - Step 3: Total Adjustment = 30 + 15 + 12 + 18 + 9.5 - 2 = 82.5%.
-  - Adjusted Intake = 41.524402 * (1 + 0.825) = 75.78193365.
-  - Step 4: Clamped Intake = 75.78193365 (within 1–100).
-  - Output: 75.78
+  - Step 3: Total Adjustment = 22.5 + 10 + 8 + 12 + 5.25 - 2 = 55.75%.
+  - Adjusted Intake = 41.524402 * (1 + 0.5575) = 64.672535155.
+  - Step 4: Clamped Intake = 64.672535155 (within 1–100).
+  - Output: 64.67
 
 Now, calculate the daily intake for the given box using the same steps. Return only the numerical value of the predicted daily intake as a float (e.g., 10.0). Do not return the total retail value or any other number.
 """
@@ -146,8 +146,8 @@ def predict_box_intake(context, historical_data, box_info):
         predictions = []
         max_retries = 3
         total_retry_time = 0
-        # Prioritize gemini-2.5-pro-preview-05-06, then fall back to others
-        model_names = ["gemini-2.5-pro-preview-05-06", "gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002"]
+        # Prioritize gemini-2.0-flash, then fall back to others
+        model_names = ["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.5-pro-preview-05-06", "gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002"]
         successful_model = None
         for i in range(1):  # Single run to minimize timeout risk
             logger.info(f"Sending request to Gemini API (run {i+1}/1)")
@@ -275,7 +275,7 @@ def test_model():
     """Test endpoint to verify Gemini API access."""
     try:
         logger.info("Received request to test Gemini model")
-        model_names = ["gemini-2.5-pro-preview-05-06", "gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002"]
+        model_names = ["gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.5-pro-preview-05-06", "gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002"]
         max_retries = 3
         total_retry_time = 0
         for model_name in model_names:
