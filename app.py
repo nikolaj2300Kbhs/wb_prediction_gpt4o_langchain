@@ -1,3 +1,4 @@
+# [Same as previous update, included for completeness]
 from flask import Flask, request, jsonify
 from langchain.prompts import PromptTemplate
 import os
@@ -20,7 +21,7 @@ if not GOOGLE_API_KEY:
     logger.error("GOOGLE_API_KEY is not set")
     raise ValueError("GOOGLE_API_KEY is not set")
 
-# Define prompt template for pattern-based approach
+# Define prompt template
 template = """
 Context: {context}
 
@@ -29,18 +30,18 @@ Historical Data (for reference, use only for general trends):
 
 Box Information: {box_info}
 
-You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Your task is to predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR. A regression model has been trained on historical data to predict the daily intake based on the Box Information. The predicted intake from the regression model is {predicted_intake}. Use this predicted intake as the primary basis and apply adjustments based on the Box Information and general trends from historical data, then return the final predicted daily intake as a whole number.
+You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Your task is to predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR. A regression model has been trained on historical data to predict the daily intake based on the Box Information. The predicted intake from the regression model is {predicted_intake}. Use this predicted intake as the primary basis and apply minimal adjustments based on the Box Information and general trends from historical data, then return the final predicted daily intake as a whole number.
 
 **Step 1: Start with the Predicted Intake**
 - The regression model predicts a daily intake of {predicted_intake} based on the Box Information.
 
-**Step 2: Apply Adjustments**
+**Step 2: Apply Minimal Adjustments**
 - Adjust the predicted intake based on the Box Information (e.g., retail value, premium products, ratings, free gift value).
-- Use historical data only to understand general trends (e.g., boxes with high retail value tend to have higher intakes), not to directly copy specific intakes.
-- Example adjustments:
-  - Increase by 1-2% per 10 EUR of retail value above 50 EUR (max 10%).
-  - Increase by 1% per premium product (max 5%).
-  - Increase by 0.5% per 10 EUR of free gift value if rating > 4.0 (max 5%).
+- Use historical data only to understand general trends (e.g., boxes with high retail value tend to have higher intakes), not to copy specific intakes.
+- Adjustments should be conservative, with a maximum total increase or decrease of 5%:
+  - Increase by 0.5% per 10 EUR of retail value above 100 EUR (max 2%).
+  - Increase by 0.5% per premium product above 3 (max 1.5%).
+  - Increase by 0.25% per 10 EUR of free gift value if rating > 4.0 (max 1.5%).
 
 **Step 3: Clamp the Final Value**
 - Ensure the final predicted intake is between 1 and 90 members/day. If below 1, set to 1; if above 90, set to 90.
@@ -57,7 +58,6 @@ prompt = PromptTemplate(
 )
 
 def call_gemini_api(prompt_text, model_name):
-    """Make a raw API call to the Gemini API with the v1 endpoint."""
     url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
@@ -75,7 +75,6 @@ def call_gemini_api(prompt_text, model_name):
         raise Exception(error_detail)
 
 def list_gemini_models():
-    """List available models using the Gemini API."""
     url = f"https://generativelanguage.googleapis.com/v1/models?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}
     try:
@@ -89,7 +88,6 @@ def list_gemini_models():
         raise Exception(error_detail)
 
 def predict_box_intake(context, box_info, predicted_intake, historical_data):
-    """Predict daily intake for a box using the Gemini API directly."""
     try:
         logger.info(f"Processing prediction request with context: {context[:100]}...")
         logger.info(f"Box info: {box_info[:100]}...")
@@ -97,8 +95,7 @@ def predict_box_intake(context, box_info, predicted_intake, historical_data):
         max_retries = 3
         total_retry_time = 0
         model_names = ["gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-flash", "gemini-2.0-flash"]
-        successful_model = None
-        for i in range(3):  # Run 3 times
+        for i in range(3):
             logger.info(f"Sending request to Gemini API (run {i+1}/3)")
             prompt_text = prompt.format(
                 context=context,
@@ -123,7 +120,6 @@ def predict_box_intake(context, box_info, predicted_intake, historical_data):
                             raise ValueError("Intake cannot be negative")
                         intake_float = max(1.0, min(90.0, intake_float))
                         intake_float = round(intake_float)
-                        successful_model = model_name
                         predictions.append(intake_float)
                         break
                     else:
@@ -133,7 +129,7 @@ def predict_box_intake(context, box_info, predicted_intake, historical_data):
                     logger.warning(f"Initial attempt failed with model {model_name}: {str(e)}")
                     total_retry_time += 0.5
                     continue
-            if predictions and len(predictions) >= 3:
+            if len(predictions) >= 3:
                 break
         if not predictions:
             logger.error("No valid intake values collected")
@@ -147,7 +143,6 @@ def predict_box_intake(context, box_info, predicted_intake, historical_data):
 
 @app.route('/predict_box_score', methods=['POST'])
 def box_score():
-    """Endpoint for predicting box intake."""
     try:
         data = request.get_json()
         if not data or 'box_info' not in data or 'context' not in data or 'predicted_intake' not in data:
@@ -167,13 +162,11 @@ def box_score():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint."""
     logger.info("Health check requested")
     return jsonify({'status': 'healthy'})
 
 @app.route('/list_models', methods=['GET'])
 def list_models():
-    """Endpoint to list available Gemini models."""
     try:
         logger.info("Received request to list Gemini models")
         models = list_gemini_models()
@@ -185,7 +178,6 @@ def list_models():
 
 @app.route('/test_model', methods=['GET'])
 def test_model():
-    """Test endpoint to verify Gemini API access."""
     try:
         logger.info("Received request to test Gemini model")
         model_names = ["gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-flash", "gemini-2.0-flash"]
