@@ -40,7 +40,7 @@ You are an expert in evaluating Goodiebox welcome boxes for their ability to att
   ALL-2501-WB-2  41.524402
 
 **Step 2: Apply Adjustments Based on Box Information**
-- **Retail Value Adjustment**: For every 10 EUR above 50 EUR in total retail value, add a 1% boost to intake, up to a maximum of 15%. For example, a retail value of 150 EUR (100 EUR above 50) adds a 10% boost (100 / 10 * 1%), while a value of 300 EUR adds the maximum 15% boost.
+- **Retail Value Adjustment**: For every 10 EUR above 50 EUR in total retail value, add a 1% boost to intake, up to a maximum of 15%. For example, a retail value of 150 EUR (100 EUR above 50) adds a 10% boost (100 / 10 * 1%), while a retail value of 300 EUR adds the maximum 15% boost.
 - **Premium Products (>20 EUR)**: Each premium product adds a 2% boost to intake, up to a maximum of 10%. For example, 3 premium products add a 6% boost (3 * 2%), 5 or more add a 10% boost.
 - **Total Weight**: Weight up to 500g adds a 2% boost per 100g; weight above 500g adds a flat 8% boost. For example, 400g adds a 8% boost (4 * 2%), 600g adds a 8% boost.
 - **Average Ratings**: For each of product, brand, and category ratings, add a 2% boost for every 0.1 increment above 4.0. For example, a rating of 4.2 adds 4% (0.2 * 2%). Sum the boosts from all three ratings.
@@ -174,6 +174,8 @@ def predict_box_intake(context, historical_data, box_info):
                             raise ValueError("Intake cannot be negative")
                         # Enforce clamping between 1 and 90
                         intake_float = max(1.0, min(90.0, intake_float))
+                        # Round to the nearest whole number
+                        intake_float = round(intake_float)
                         successful_model = model_name
                         predictions.append(intake_float)
                         break
@@ -207,6 +209,8 @@ def predict_box_intake(context, historical_data, box_info):
                                     raise ValueError("Intake cannot be negative")
                                 # Enforce clamping between 1 and 90
                                 intake_float = max(1.0, min(90.0, intake_float))
+                                # Round to the nearest whole number
+                                intake_float = round(intake_float)
                                 predictions.append(intake_float)
                                 break
                             else:
