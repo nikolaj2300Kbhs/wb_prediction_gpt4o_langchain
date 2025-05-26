@@ -24,25 +24,29 @@ if not GOOGLE_API_KEY:
 template = """
 Context: {context}
 
-Historical Data (for reference): 
+Historical Data (for reference, use only for general trends): 
 {historical_data}
 
 Box Information: {box_info}
 
-You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Your task is to predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR. A regression model has been trained on historical data to predict the daily intake based on the Box Information. The predicted intake from the regression model is {predicted_intake}. Use this predicted intake as the starting point and apply any additional adjustments based on your expertise and the historical data, then return the final predicted daily intake as a whole number.
+You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Your task is to predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR. A regression model has been trained on historical data to predict the daily intake based on the Box Information. The predicted intake from the regression model is {predicted_intake}. Use this predicted intake as the primary basis and apply adjustments based on the Box Information and general trends from historical data, then return the final predicted daily intake as a whole number.
 
 **Step 1: Start with the Predicted Intake**
 - The regression model predicts a daily intake of {predicted_intake} based on the Box Information.
 
-**Step 2: Apply Additional Adjustments (Optional)**
-- Based on your expertise and the historical data, apply any additional adjustments to the predicted intake if necessary (e.g., market trends, seasonality not captured by the model, or patterns from similar boxes in the historical data).
-- If no adjustments are needed, use the predicted intake as the final value.
+**Step 2: Apply Adjustments**
+- Adjust the predicted intake based on the Box Information (e.g., retail value, premium products, ratings, free gift value).
+- Use historical data only to understand general trends (e.g., boxes with high retail value tend to have higher intakes), not to directly copy specific intakes.
+- Example adjustments:
+  - Increase by 1-2% per 10 EUR of retail value above 50 EUR (max 10%).
+  - Increase by 1% per premium product (max 5%).
+  - Increase by 0.5% per 10 EUR of free gift value if rating > 4.0 (max 5%).
 
 **Step 3: Clamp the Final Value**
-- Ensure the final predicted intake is between 1 and 90 members/day. If the adjusted intake is below 1, set it to 1; if above 90, set it to 90.
+- Ensure the final predicted intake is between 1 and 90 members/day. If below 1, set to 1; if above 90, set to 90.
 
 **Step 4: Round to Whole Numbers**
-- Since daily intake represents the number of new members per day, round the clamped intake to the nearest whole number.
+- Round the clamped intake to the nearest whole number.
 
 Return only the numerical value of the predicted daily intake as a whole number (e.g., 10). Do not return any other number.
 """
@@ -55,15 +59,10 @@ prompt = PromptTemplate(
 def call_gemini_api(prompt_text, model_name):
     """Make a raw API call to the Gemini API with the v1 endpoint."""
     url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={GOOGLE_API_KEY}"
-    headers = {
-        "Content-Type": "application/json"
-    }
+    headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{"parts": [{"text": prompt_text}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 1000
-        }
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1000}
     }
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=10)
@@ -78,9 +77,7 @@ def call_gemini_api(prompt_text, model_name):
 def list_gemini_models():
     """List available models using the Gemini API."""
     url = f"https://generativelanguage.googleapis.com/v1/models?key={GOOGLE_API_KEY}"
-    headers = {
-        "Content-Type": "application/json"
-    }
+    headers = {"Content-Type": "application/json"}
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
