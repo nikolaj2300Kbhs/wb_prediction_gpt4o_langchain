@@ -20,81 +20,35 @@ if not GOOGLE_API_KEY:
     logger.error("GOOGLE_API_KEY is not set")
     raise ValueError("GOOGLE_API_KEY is not set")
 
-# Define prompt template with adjusted boosts and clamping
+# Define prompt template for pattern-based approach
 template = """
 Context: {context}
 
-Historical Data: {historical_data}
+Historical Data (for reference): 
+{historical_data}
 
 Box Information: {box_info}
 
-You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Your task is to predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR. Follow these steps exactly to calculate the daily intake. Return only the final predicted daily intake as a float (e.g., 10.0). Do not return any other numerical value, such as the total retail value of the box.
+You are an expert in evaluating Goodiebox welcome boxes for their ability to attract new members in Denmark. Your task is to predict the daily intake (new members per day) for the box at a Customer Acquisition Cost (CAC) of 17.5 EUR. A regression model has been trained on historical data to predict the daily intake based on the Box Information. The predicted intake from the regression model is {predicted_intake}. Use this predicted intake as the starting point and apply any additional adjustments based on your expertise and the historical data, then return the final predicted daily intake as a whole number.
 
-**Step 1: Determine the Baseline Using Historical Data**
-- Parse the Historical Data to find the actual_intake_per_day for the Box SKU specified in the Box Information.
-- If the Box SKU is found in the Historical Data, set the baseline to its actual_intake_per_day.
-- If the Box SKU is not found, use a default baseline of 10 members/day.
-- Example Historical Data format:
-  box_sku  actual_intake_per_day
-  ALL-2410-WB-6  81.719008
-  ALL-2501-WB-2  41.524402
+**Step 1: Start with the Predicted Intake**
+- The regression model predicts a daily intake of {predicted_intake} based on the Box Information.
 
-**Step 2: Apply Adjustments Based on Box Information**
-- **Retail Value Adjustment**: For every 10 EUR above 50 EUR in total retail value, add a 1% boost to intake, up to a maximum of 15%. For example, a retail value of 150 EUR (100 EUR above 50) adds a 10% boost (100 / 10 * 1%), while a retail value of 300 EUR adds the maximum 15% boost.
-- **Premium Products (>20 EUR)**: Each premium product adds a 2% boost to intake, up to a maximum of 10%. For example, 3 premium products add a 6% boost (3 * 2%), 5 or more add a 10% boost.
-- **Total Weight**: Weight up to 500g adds a 2% boost per 100g; weight above 500g adds a flat 8% boost. For example, 400g adds a 8% boost (4 * 2%), 600g adds a 8% boost.
-- **Average Ratings**: For each of product, brand, and category ratings, add a 2% boost for every 0.1 increment above 4.0. For example, a rating of 4.2 adds 4% (0.2 * 2%). Sum the boosts from all three ratings.
-- **Niche Products**: Each niche product reduces intake by 1%. For example, 1 niche product reduces intake by 1%, 2 niche products by 2%.
-- **Free Gift Value and Rating**: Add 0.5% to intake for every 10 EUR of free gift value (e.g., 50 EUR adds 2.5%). Add an additional 2% if the free gift rating is above 4.0.
-- **Seasonality**: If the launch month is early in the month (e.g., January, October), add a 2% boost. Otherwise, no adjustment.
+**Step 2: Apply Additional Adjustments (Optional)**
+- Based on your expertise and the historical data, apply any additional adjustments to the predicted intake if necessary (e.g., market trends, seasonality not captured by the model, or patterns from similar boxes in the historical data).
+- If no adjustments are needed, use the predicted intake as the final value.
 
-**Step 3: Calculate the Total Adjustment**
-- Sum the percentage boosts and reductions to get the total adjustment. For example, if boosts are +10% (retail value), +6% (premium products), +8% (weight), +6% (ratings), +4.5% (free gift), +2% (seasonality), and reductions are -1% (niche products), the total adjustment is 10 + 6 + 8 + 6 + 4.5 + 2 - 1 = 35.5%.
-- Apply the total adjustment to the baseline: Adjusted Intake = Baseline * (1 + Total Adjustment / 100). For example, if Baseline = 81.719008, then 81.719008 * (1 + 0.355) = 110.72925584.
-
-**Step 4: Clamp the Final Value**
+**Step 3: Clamp the Final Value**
 - Ensure the final predicted intake is between 1 and 90 members/day. If the adjusted intake is below 1, set it to 1; if above 90, set it to 90.
 
-**Examples**:
-- **Example 1**:
-  - Historical Data: box_sku  actual_intake_per_day\nALL-2410-WB-6  81.719008
-  - Box Information: Box SKU: ALL-2410-WB-6, Number of products: 7, Number of premium products (>20 EUR): 3, Total weight: 400g, Number of niche products: 1, Average product rating: 4.2, Average category rating: 4.1, Average brand rating: 4.0, Free gift: Value: 50 EUR, Rating: 4.5, Launch month: January, Total retail value (for reference only, do not use as prediction): 150 EUR
-  - Step 1: Baseline = 81.719008 (from historical data for ALL-2410-WB-6).
-  - Step 2:
-    - Retail Value: 150 EUR (100 EUR above 50) = 10% boost (100 / 10 * 1%).
-    - Premium products: 3 * 2% = 6% boost.
-    - Weight: 400g = 4 * 2% = 8% boost.
-    - Ratings: Product 4.2 (4%), Category 4.1 (2%), Brand 4.0 (0%) = 6% boost.
-    - Niche products: 1 * 1% = 1% reduction.
-    - Free gift: 50 EUR = 2.5% + 2% (rating > 4.0) = 4.5% boost.
-    - Seasonality: Early-month = 2% boost.
-  - Step 3: Total Adjustment = 10 + 6 + 8 + 6 + 4.5 + 2 - 1 = 35.5%.
-  - Adjusted Intake = 81.719008 * (1 + 0.355) = 110.72925584.
-  - Step 4: Clamped Intake = 90 (capped at 90).
-  - Output: 90.0
+**Step 4: Round to Whole Numbers**
+- Since daily intake represents the number of new members per day, round the clamped intake to the nearest whole number.
 
-- **Example 2**:
-  - Historical Data: box_sku  actual_intake_per_day\nALL-2501-WB-2  41.524402
-  - Box Information: Box SKU: ALL-2501-WB-2, Number of products: 8, Number of premium products (>20 EUR): 5, Total weight: 600g, Number of niche products: 2, Average product rating: 4.3, Average category rating: 4.2, Average brand rating: 4.1, Free gift: Value: 65 EUR, Rating: 4.33, Launch month: March, Total retail value (for reference only, do not use as prediction): 250 EUR
-  - Step 1: Baseline = 41.524402 (from historical data for ALL-2501-WB-2).
-  - Step 2:
-    - Retail Value: 250 EUR (200 EUR above 50) = 15% boost (capped at 15%).
-    - Premium products: 5 * 2% = 10% boost (capped).
-    - Weight: 600g = 8% boost.
-    - Ratings: Product 4.3 (6%), Category 4.2 (4%), Brand 4.1 (2%) = 12% boost.
-    - Niche products: 2 * 1% = 2% reduction.
-    - Free gift: 65 EUR = 3.25% + 2% (rating > 4.0) = 5.25% boost.
-    - Seasonality: Not early-month = 0% boost.
-  - Step 3: Total Adjustment = 15 + 10 + 8 + 12 + 5.25 - 2 = 48.25%.
-  - Adjusted Intake = 41.524402 * (1 + 0.4825) = 61.557523965.
-  - Step 4: Clamped Intake = 61.557523965 (within 1–90).
-  - Output: 61.56
-
-Now, calculate the daily intake for the given box using the same steps. Return only the numerical value of the predicted daily intake as a float (e.g., 10.0). Do not return the total retail value or any other number.
+Return only the numerical value of the predicted daily intake as a whole number (e.g., 10). Do not return any other number.
 """
 
 prompt = PromptTemplate(
-    input_variables=["context", "historical_data", "box_info"],
+    input_variables=["context", "historical_data", "box_info", "predicted_intake"],
     template=template
 )
 
@@ -112,11 +66,10 @@ def call_gemini_api(prompt_text, model_name):
         }
     }
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=5)
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        # Log the full response text if available
         error_detail = str(e)
         if hasattr(e, 'response') and e.response is not None:
             error_detail += f" - Response: {e.response.text}"
@@ -138,7 +91,7 @@ def list_gemini_models():
             error_detail += f" - Response: {e.response.text}"
         raise Exception(error_detail)
 
-def predict_box_intake(context, historical_data, box_info):
+def predict_box_intake(context, box_info, predicted_intake, historical_data):
     """Predict daily intake for a box using the Gemini API directly."""
     try:
         logger.info(f"Processing prediction request with context: {context[:100]}...")
@@ -146,19 +99,18 @@ def predict_box_intake(context, historical_data, box_info):
         predictions = []
         max_retries = 3
         total_retry_time = 0
-        # Prioritize gemini-1.5-pro, then fall back to others
-        model_names = ["gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-2.5-pro-preview-05-06", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002"]
+        model_names = ["gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-flash", "gemini-2.0-flash"]
         successful_model = None
-        for i in range(1):  # Single run to minimize timeout risk
-            logger.info(f"Sending request to Gemini API (run {i+1}/1)")
+        for i in range(3):  # Run 3 times
+            logger.info(f"Sending request to Gemini API (run {i+1}/3)")
             prompt_text = prompt.format(
                 context=context,
                 historical_data=historical_data,
-                box_info=box_info
+                box_info=box_info,
+                predicted_intake=predicted_intake
             )
-            # First pass: try each model once
             for model_name in model_names:
-                if total_retry_time >= 7:  # Ensure total retry time stays under 7 seconds
+                if total_retry_time >= 7:
                     logger.error("Total retry time would exceed 7 seconds, aborting retries")
                     raise ValueError("Retry timeout exceeded")
                 try:
@@ -166,15 +118,13 @@ def predict_box_intake(context, historical_data, box_info):
                     response = call_gemini_api(prompt_text, model_name)
                     result = response["candidates"][0]["content"]["parts"][0]["text"]
                     logger.info(f"Run {i+1} response: {result}")
-                    match = re.search(r'\d+\.\d+', result)
+                    match = re.search(r'\d+', result)
                     if match:
                         intake_float = float(match.group())
                         if intake_float < 0:
                             logger.error("Negative intake value received")
                             raise ValueError("Intake cannot be negative")
-                        # Enforce clamping between 1 and 90
                         intake_float = max(1.0, min(90.0, intake_float))
-                        # Round to the nearest whole number
                         intake_float = round(intake_float)
                         successful_model = model_name
                         predictions.append(intake_float)
@@ -184,54 +134,15 @@ def predict_box_intake(context, historical_data, box_info):
                         raise ValueError("Invalid intake format")
                 except Exception as e:
                     logger.warning(f"Initial attempt failed with model {model_name}: {str(e)}")
-                    total_retry_time += 0.5  # Approximate 0.5 seconds per attempt
+                    total_retry_time += 0.5
                     continue
-            if predictions:  # If successful, break
+            if predictions and len(predictions) >= 3:
                 break
-            # Second pass: retry the first successful model or continue with others
-            if not successful_model:
-                for model_name in model_names:
-                    for attempt in range(max_retries):
-                        retry_delay = 0.5 * (2 ** attempt)  # Exponential backoff: 0.5, 1, 2 seconds
-                        if total_retry_time + retry_delay > 7:
-                            logger.error("Total retry time would exceed 7 seconds, aborting retries")
-                            raise ValueError("Retry timeout exceeded")
-                        try:
-                            logger.info(f"Retrying Gemini API with model: {model_name} (attempt {attempt+1}/{max_retries})")
-                            response = call_gemini_api(prompt_text, model_name)
-                            result = response["candidates"][0]["content"]["parts"][0]["text"]
-                            logger.info(f"Run {i+1} response: {result}")
-                            match = re.search(r'\d+\.\d+', result)
-                            if match:
-                                intake_float = float(match.group())
-                                if intake_float < 0:
-                                    logger.error("Negative intake value received")
-                                    raise ValueError("Intake cannot be negative")
-                                # Enforce clamping between 1 and 90
-                                intake_float = max(1.0, min(90.0, intake_float))
-                                # Round to the nearest whole number
-                                intake_float = round(intake_float)
-                                predictions.append(intake_float)
-                                break
-                            else:
-                                logger.warning(f"Invalid intake format in run {i+1}: {result}")
-                                raise ValueError("Invalid intake format")
-                        except Exception as e:
-                            logger.warning(f"Run {i+1} failed with model {model_name} (attempt {attempt+1}/{max_retries}): {str(e)}")
-                            if attempt == max_retries - 1 and model_name == model_names[-1]:
-                                logger.error(f"All attempts and model names failed for run {i+1}")
-                                raise
-                            time.sleep(retry_delay)
-                            total_retry_time += retry_delay
-                            continue
-                        break  # Break inner loop if successful
-                    if predictions:  # If successful, break
-                        break
         if not predictions:
             logger.error("No valid intake values collected")
             raise ValueError("No valid intake values collected")
-        avg_intake = sum(predictions) / len(predictions)
-        logger.info(f"Averaged intake from 1 run: {avg_intake}")
+        avg_intake = round(sum(predictions) / len(predictions))
+        logger.info(f"Averaged intake from {len(predictions)} runs: {avg_intake}")
         return avg_intake
     except Exception as e:
         logger.error(f"Error in prediction: {str(e)}")
@@ -242,14 +153,15 @@ def box_score():
     """Endpoint for predicting box intake."""
     try:
         data = request.get_json()
-        if not data or 'box_info' not in data or 'context' not in data:
-            logger.error("Missing box_info or context in request")
-            return jsonify({'error': 'Missing box_info or context'}), 400
-        historical_data = data.get('historical_data', 'No historical data provided')
+        if not data or 'box_info' not in data or 'context' not in data or 'predicted_intake' not in data:
+            logger.error("Missing box_info, context, or predicted_intake in request")
+            return jsonify({'error': 'Missing box_info, context, or predicted_intake'}), 400
         box_info = data['box_info']
         context_text = data['context']
+        predicted_intake = data['predicted_intake']
+        historical_data = data.get('historical_data', '')
         logger.info("Received request to predict box intake")
-        intake = predict_box_intake(context_text, historical_data, box_info)
+        intake = predict_box_intake(context_text, box_info, predicted_intake, historical_data)
         logger.info(f"Returning predicted intake: {intake}")
         return jsonify({'predicted_intake': intake})
     except Exception as e:
@@ -279,11 +191,11 @@ def test_model():
     """Test endpoint to verify Gemini API access."""
     try:
         logger.info("Received request to test Gemini model")
-        model_names = ["gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002", "gemini-2.5-pro-preview-05-06", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002"]
+        model_names = ["gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-flash", "gemini-2.0-flash"]
         max_retries = 3
         total_retry_time = 0
         for model_name in model_names:
-            if total_retry_time >= 7:  # Ensure total retry time stays under 7 seconds
+            if total_retry_time >= 7:
                 logger.error("Total retry time would exceed 7 seconds, aborting retries")
                 raise ValueError("Retry timeout exceeded")
             try:
@@ -294,12 +206,11 @@ def test_model():
                 return jsonify({'status': 'success', 'response': result})
             except Exception as e:
                 logger.warning(f"Initial attempt failed with model {model_name}: {str(e)}")
-                total_retry_time += 0.5  # Approximate 0.5 seconds per attempt
+                total_retry_time += 0.5
                 continue
-        # If initial attempts fail, retry each model
         for model_name in model_names:
             for attempt in range(max_retries):
-                retry_delay = 0.5 * (2 ** attempt)  # Exponential backoff: 0.5, 1, 2 seconds
+                retry_delay = 0.5 * (2 ** attempt)
                 if total_retry_time + retry_delay > 7:
                     logger.error("Total retry time would exceed 7 seconds, aborting retries")
                     raise ValueError("Retry timeout exceeded")
@@ -317,7 +228,7 @@ def test_model():
                     time.sleep(retry_delay)
                     total_retry_time += retry_delay
                     continue
-                break  # Break inner loop if successful
+                break
     except Exception as e:
         logger.error(f"Test prompt failed: {str(e)}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
